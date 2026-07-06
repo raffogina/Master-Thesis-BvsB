@@ -1,0 +1,231 @@
+{
+  "_readme": "All dictionaries used by scraper_v2.py. This file IS methodology: reproduce it in the thesis Annex and cite a source for every list you keep. Fields starting with '_' are documentation only. Term syntax: lowercase; a trailing '*' matches any word ending (e.g. 'customiz*' matches customize/customization); spaces in a phrase also match hyphens (e.g. 'in house' matches 'in-house').",
+
+  "subreddits": {
+    "_criteria": "Inclusion criteria (document in Section 2): (1) thematic fit: community self-description addresses legal practice or legal technology; (2) professional audience (practitioners, ops, builders), not consumer legal advice; (3) active in the last 12 months; (4) English language; (5) non-zero yield of gated threads in the pilot run. Cite Proferes et al. (2021) for purposive subreddit sampling practice.",
+    "specialist": [
+      "legaltech",
+      "legaltechAI",
+      "LegalTechMakers",
+      "LegalAITech",
+      "LegaltechEurope",
+      "LegalAIHelp",
+      "LegalAIPrompts",
+      "AIforLawyers_",
+      "techlaw"
+    ],
+    "practitioner": [
+      "Lawyertalk",
+      "lawfirm",
+      "paralegal",
+      "TheAttorneyLounge"
+    ],
+    "excluded": {
+      "legal": "consumer legal-advice audience; v1 yield was off-topic (workplace disputes)",
+      "law": "news/politics audience; v1 yield was off-topic (eminent domain, Disney/OpenAI news)",
+      "artificial": "general AI audience, no legal-domain discourse; v1 yield was consumer purchase advice",
+      "computerforensics": "adjacent field, no build-vs-buy procurement discourse in pilot",
+      "remotelegaljobs": "job listings, no procurement discourse"
+    }
+  },
+
+  "queries": [
+    "build OR buy",
+    "\"build vs buy\" OR \"buy vs build\"",
+    "vendor OR \"in-house\" OR \"in house\"",
+    "\"built our own\" OR \"off the shelf\""
+  ],
+
+  "gate": {
+    "_rule": "A thread passes the gate when (A) its title+body contain at least one strong decision phrase, OR a weak decision verb together with a software noun; AND (B) there is legal-domain evidence: a legal term, OR the thread sits in a 'specialist' subreddit, OR a legal-specific provider is named. Providers are NOT required to pass the gate (they are measured variables, not filters).",
+    "strong_phrases": [
+      "build vs buy", "build or buy", "buy vs build", "buy or build", "build versus buy",
+      "in house", "inhouse", "built our own", "build our own", "building our own",
+      "built my own", "build my own", "build your own", "built in house",
+      "off the shelf", "vendor", "vendors", "saas", "procurement",
+      "clm", "contract lifecycle", "document automation", "practice management software",
+      "legal tech", "legaltech", "vibe coding", "vibe coded", "self host", "self hosted",
+      "from scratch", "license fee", "licensing cost", "enterprise license"
+    ],
+    "weak_verbs": [
+      "build", "building", "built", "buy", "buying", "bought", "purchase", "purchasing",
+      "develop", "developing", "developed", "code", "coding", "coded", "automate", "automating"
+    ],
+    "software_nouns": [
+      "software", "tool", "tools", "app", "apps", "application", "platform", "system",
+      "stack", "solution", "automation", "ai", "bot", "agent", "agents", "workflow",
+      "database", "template", "templates", "integration", "api", "llm", "gpt",
+      "dashboard", "script", "chatbot", "intranet", "portal"
+    ],
+    "legal_terms": [
+      "legal", "law firm", "lawyer", "lawyers", "attorney", "attorneys", "paralegal",
+      "counsel", "compliance", "contract", "contracts", "clm", "litigation",
+      "matter management", "ediscovery", "e discovery", "due diligence", "firm"
+    ]
+  },
+
+  "stance": {
+    "_rule": "Heuristic orientation of the discussion, NOT a verified decision. Verify a sample by hand in the manual_decision column (see README validation protocol).",
+    "build_signals": [
+      "build our own", "built our own", "building our own", "build my own", "built my own",
+      "in house", "inhouse", "internally", "internal tool", "self host", "self hosted",
+      "diy", "from scratch", "vibe coding", "vibe coded", "custom build", "custom built",
+      "we built", "i built", "we developed", "i developed", "develop ourselves",
+      "no code", "low code", "own solution", "roll our own"
+    ],
+    "buy_signals": [
+      "off the shelf", "vendor", "vendors", "saas", "license", "licence", "licensing",
+      "subscription", "procurement", "purchase", "purchased", "rfp", "demo", "demos",
+      "pricing", "per seat", "sales team", "contract with", "signed with", "renewal",
+      "implementation partner", "onboarding fee"
+    ],
+    "min_hits": 3,
+    "dominance_ratio": 2.0
+  },
+
+  "factors": {
+    "_rule": "Deductive decision-factor dictionaries (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013). Sources below are SUGGESTIONS drawn from canonical literature - read and confirm each before citing. Salience = share of gated threads mentioning the factor; tone = mean VADER compound of sentences mentioning it.",
+    "cost_roi": {
+      "label": "Cost / ROI / TCO",
+      "suggested_source": "Williamson (1985) transaction-cost economics; Ellram (1995) total cost of ownership; Daneshgar et al. (2013)",
+      "terms": ["cost", "costs", "costly", "pricing", "price", "prices", "budget", "budgets", "roi", "expensive", "cheap", "cheaper", "fee", "fees", "tco", "total cost of ownership", "payback", "per seat", "per user", "business case", "break even", "breakeven"]
+    },
+    "integration": {
+      "label": "Integration with existing stack",
+      "suggested_source": "Daneshgar et al. (2013); Lacity & Hirschheim (1993)",
+      "terms": ["integration", "integrations", "integrate", "integrates", "integrated", "api", "apis", "sso", "interoperab*", "connector", "connectors", "plug into", "works with", "sync", "syncs", "embed", "embedded"]
+    },
+    "security_privacy_compliance": {
+      "label": "Security / privacy / regulatory compliance",
+      "suggested_source": "ABA Model Rule 1.6 (confidentiality); ILTA Technology Survey; GDPR literature",
+      "terms": ["security", "secure", "privacy", "gdpr", "data protection", "confidential*", "compliance", "compliant", "soc 2", "soc2", "iso 27001", "breach", "infosec", "information security", "audit", "on prem*", "sovereignty", "data residency"]
+    },
+    "lockin_dependency": {
+      "label": "Vendor lock-in / dependency risk",
+      "suggested_source": "Shapiro & Varian (1999) switching costs; thesis §4.3 dependency-risk concept",
+      "terms": ["lock in", "lockin", "locked in", "dependency", "dependent", "dependence", "vendor lock", "migration", "migrate", "exit strategy", "switching cost*", "stuck with", "hostage", "sunset", "shut down", "shutdown", "acquisition", "acquired", "price increase", "raise prices", "raised prices"]
+    },
+    "control_customization_ip": {
+      "label": "Control / customization / IP ownership",
+      "suggested_source": "Lacity & Hirschheim (1993); Barney (1991) resource-based view",
+      "terms": ["control", "customiz*", "customis*", "custom", "bespoke", "tailor*", "flexib*", "ownership", "own the", "ip rights", "intellectual property", "source code", "open source", "proprietary"]
+    },
+    "usability_adoption": {
+      "label": "Usability / adoption / change management",
+      "suggested_source": "Davis (1989) Technology Acceptance Model",
+      "terms": ["ux", "ui", "usability", "user friendly", "intuitive", "adoption", "adopt", "training", "learning curve", "change management", "onboarding", "clunky", "easy to use", "user experience"]
+    },
+    "maintenance_support": {
+      "label": "Maintenance burden / vendor support",
+      "suggested_source": "Daneshgar et al. (2013); software maintenance economics literature",
+      "terms": ["maintenance", "maintain*", "technical debt", "bug", "bugs", "break*", "reliab*", "uptime", "downtime", "outage", "customer support", "support team", "upkeep", "who maintains", "keep it updated", "patches"]
+    },
+    "time_to_value": {
+      "label": "Time to market / speed of deployment",
+      "suggested_source": "Daneshgar et al. (2013)",
+      "terms": ["time to market", "timeline", "deadline", "implementation time", "deploy*", "rollout", "roll out", "quick win", "mvp", "proof of concept", "poc", "months to build", "weeks to build", "faster to", "quicker to"]
+    },
+    "trust_vendor_relationship": {
+      "label": "Trust / vendor reputation & relationship",
+      "suggested_source": "Morgan & Hunt (1994) commitment-trust theory",
+      "terms": ["trust", "trustworthy", "distrust", "reputation", "references", "reviews", "case studies", "sales team", "salespeople", "pilot", "relationship", "credib*", "track record", "vaporware", "snake oil"]
+    },
+    "skills_resources": {
+      "label": "Internal skills / engineering resources",
+      "suggested_source": "Barney (1991) resource-based view; vibe-coding claims (thesis §4.1)",
+      "terms": ["developer", "developers", "engineer", "engineers", "engineering team", "headcount", "hire", "hiring", "skills", "skillset", "expertise", "technical team", "it team", "it department", "no code", "low code", "non technical", "nontechnical", "staffing"]
+    },
+    "professional_risk_accuracy": {
+      "label": "Professional risk / accuracy / hallucination",
+      "suggested_source": "Dahl, Magesh, Suzgun & Ho (2024) 'Large Legal Fictions', J. Legal Analysis",
+      "terms": ["risk", "risks", "risky", "liab*", "malpractice", "ethic*", "professional responsibility", "hallucinat*", "accuracy", "accurate", "inaccurate", "wrong answer", "wrong citation", "fake case", "sanction*", "verify", "verification"]
+    }
+  },
+
+  "providers": {
+    "_rule": "Measured variables (the market barometer), not gate filters. Replace/extend this list with a citable market taxonomy (e.g. Stanford CodeX Techindex, Legaltech Hub, or the Legal Tech Monitor list you mentioned) and state the cut-off date. legal_specific=true entries also count as legal-domain evidence in the gate.",
+    "_known_ambiguities": "harvey (person name), gavel (object), relativity (physics), kira (person name), vincent (person name -> matched only as 'vincent ai'), copilot (generic aviation term). Spot-check these in manual validation.",
+    "entries": [
+      {"name": "Harvey",            "patterns": ["harvey"],                                        "category": "legal_ai_assistant", "legal_specific": true},
+      {"name": "Legora",            "patterns": ["legora"],                                        "category": "legal_ai_assistant", "legal_specific": true},
+      {"name": "CoCounsel/Casetext","patterns": ["cocounsel", "co counsel", "casetext"],           "category": "legal_ai_assistant", "legal_specific": true},
+      {"name": "Wordsmith",         "patterns": ["wordsmith"],                                     "category": "legal_ai_assistant", "legal_specific": true},
+      {"name": "Spellbook",         "patterns": ["spellbook"],                                     "category": "contract_ai",        "legal_specific": true},
+      {"name": "Luminance",         "patterns": ["luminance"],                                     "category": "contract_ai",        "legal_specific": true},
+      {"name": "Kira",              "patterns": ["kira"],                                          "category": "contract_ai",        "legal_specific": true},
+      {"name": "Ironclad",          "patterns": ["ironclad"],                                      "category": "clm",                "legal_specific": true},
+      {"name": "LegalOn",           "patterns": ["legalon"],                                       "category": "clm",                "legal_specific": true},
+      {"name": "Agiloft",           "patterns": ["agiloft"],                                       "category": "clm",                "legal_specific": true},
+      {"name": "ContractPodAi",     "patterns": ["contractpod*"],                                  "category": "clm",                "legal_specific": true},
+      {"name": "DocuSign",          "patterns": ["docusign"],                                      "category": "esignature",         "legal_specific": true},
+      {"name": "PandaDoc",          "patterns": ["pandadoc"],                                      "category": "esignature",         "legal_specific": true},
+      {"name": "Adobe/Acrobat Sign","patterns": ["adobe sign", "acrobat sign"],                    "category": "esignature",         "legal_specific": true},
+      {"name": "Clio",              "patterns": ["clio"],                                          "category": "practice_mgmt",      "legal_specific": true},
+      {"name": "Smokeball",         "patterns": ["smokeball"],                                     "category": "practice_mgmt",      "legal_specific": true},
+      {"name": "MyCase",            "patterns": ["mycase"],                                        "category": "practice_mgmt",      "legal_specific": true},
+      {"name": "PracticePanther",   "patterns": ["practicepanther", "practice panther"],           "category": "practice_mgmt",      "legal_specific": true},
+      {"name": "Filevine",          "patterns": ["filevine"],                                      "category": "practice_mgmt",      "legal_specific": true},
+      {"name": "vLex/Vincent",      "patterns": ["vlex", "vincent ai"],                            "category": "research",           "legal_specific": true},
+      {"name": "LexisNexis",        "patterns": ["lexisnexis", "lexis nexis", "lexis+", "lexis plus"], "category": "research",       "legal_specific": true},
+      {"name": "Westlaw",           "patterns": ["westlaw"],                                       "category": "research",           "legal_specific": true},
+      {"name": "Thomson Reuters",   "patterns": ["thomson reuters"],                               "category": "research",           "legal_specific": true},
+      {"name": "Bloomberg Law",     "patterns": ["bloomberg law", "bloomberg"],                    "category": "research",           "legal_specific": true},
+      {"name": "Relativity",        "patterns": ["relativity"],                                    "category": "ediscovery",         "legal_specific": true},
+      {"name": "Everlaw",           "patterns": ["everlaw"],                                       "category": "ediscovery",         "legal_specific": true},
+      {"name": "Logikcull",         "patterns": ["logikcull"],                                     "category": "ediscovery",         "legal_specific": true},
+      {"name": "Brightflag",        "patterns": ["brightflag"],                                    "category": "spend_mgmt",         "legal_specific": true},
+      {"name": "SimpleLegal",       "patterns": ["simplelegal", "simple legal"],                   "category": "spend_mgmt",         "legal_specific": true},
+      {"name": "Gavel",             "patterns": ["gavel"],                                         "category": "doc_automation",     "legal_specific": true},
+      {"name": "Genie AI",          "patterns": ["genie ai", "genieai"],                           "category": "doc_automation",     "legal_specific": true},
+      {"name": "Josef",             "patterns": ["josef"],                                         "category": "doc_automation",     "legal_specific": true},
+      {"name": "LawHawk",           "patterns": ["lawhawk"],                                       "category": "doc_automation",     "legal_specific": true},
+      {"name": "Neota Logic",       "patterns": ["neota"],                                         "category": "no_code_legal",      "legal_specific": true},
+      {"name": "BRYTER",            "patterns": ["bryter"],                                        "category": "no_code_legal",      "legal_specific": true},
+      {"name": "iManage",           "patterns": ["imanage"],                                       "category": "dms",                "legal_specific": true},
+      {"name": "NetDocuments",      "patterns": ["netdocuments", "net documents"],                 "category": "dms",                "legal_specific": true},
+      {"name": "HighQ",             "patterns": ["highq"],                                         "category": "collaboration",      "legal_specific": true},
+
+      {"name": "Claude/Anthropic",  "patterns": ["claude", "anthropic"],                           "category": "foundation_vibecoding", "legal_specific": false},
+      {"name": "ChatGPT/OpenAI",    "patterns": ["chatgpt", "openai", "gpt"],                      "category": "foundation_vibecoding", "legal_specific": false},
+      {"name": "Copilot",           "patterns": ["copilot"],                                       "category": "foundation_vibecoding", "legal_specific": false},
+      {"name": "Gemini",            "patterns": ["gemini"],                                        "category": "foundation_vibecoding", "legal_specific": false},
+      {"name": "Cursor",            "patterns": ["cursor"],                                        "category": "foundation_vibecoding", "legal_specific": false},
+      {"name": "Lovable",           "patterns": ["lovable"],                                       "category": "foundation_vibecoding", "legal_specific": false},
+      {"name": "Base44",            "patterns": ["base44", "base 44"],                             "category": "foundation_vibecoding", "legal_specific": false},
+      {"name": "Replit",            "patterns": ["replit"],                                        "category": "foundation_vibecoding", "legal_specific": false},
+      {"name": "SharePoint",        "patterns": ["sharepoint"],                                    "category": "diy_platform",          "legal_specific": false},
+      {"name": "Power Platform",    "patterns": ["power automate", "power platform", "powerapps", "power apps"], "category": "diy_platform", "legal_specific": false},
+      {"name": "Airtable",          "patterns": ["airtable"],                                      "category": "diy_platform",          "legal_specific": false},
+      {"name": "Zapier",            "patterns": ["zapier"],                                        "category": "diy_platform",          "legal_specific": false},
+      {"name": "AWS",               "patterns": ["aws", "amazon web services"],                    "category": "infrastructure",        "legal_specific": false},
+      {"name": "Azure",             "patterns": ["azure"],                                         "category": "infrastructure",        "legal_specific": false}
+    ]
+  },
+
+  "sentiment": {
+    "_rule": "VADER compound thresholds per Hutto & Gilbert (2014): >= 0.05 positive, <= -0.05 negative, else neutral. Applied separately to the original post (author-satisfaction proxy) and to comments (community reaction).",
+    "positive_threshold": 0.05,
+    "negative_threshold": -0.05
+  },
+
+  "legacy_keywords": {
+    "_rule": "Cleaned replacement of the v1 inductive word-frequency output: lemmatised (plural/singular folded), standard English stop list plus the extras below, URL fragments stripped.",
+    "min_count": 5,
+    "min_token_len": 3,
+    "extra_stopwords": [
+      "im", "ive", "id", "ill", "dont", "cant", "wont", "didnt", "doesnt", "isnt",
+      "arent", "wasnt", "werent", "havent", "hasnt", "youre", "youve", "youll",
+      "theyre", "theyve", "thats", "whats", "hes", "shes", "weve", "were", "youd",
+      "https", "http", "www", "com", "reddit", "amp", "x200b", "gt", "lt",
+      "deleted", "removed", "edit", "op", "tldr", "etc", "really", "actually",
+      "pretty", "maybe", "probably", "stuff", "thing", "things", "yeah", "yes",
+      "lol", "month", "months", "year", "years", "day", "days", "week", "weeks",
+      "ago", "gonna", "gotta", "lot", "bit", "dm", "dms", "post", "posts",
+      "comment", "comments", "thread", "threads", "sub", "subreddit", "got",
+      "get", "getting", "also", "even", "much", "many", "still", "way", "well",
+      "good", "make", "making", "made", "know", "time", "see", "want", "need",
+      "use", "using", "used", "user", "users", "people", "someone", "anyone",
+      "something", "anything", "everything", "nothing", "here", "there", "now"
+    ]
+  }
+}
