@@ -1,0 +1,9 @@
+# Core
+requests>=2.31
+
+# Sentiment (recommended backend; cite Hutto & Gilbert 2014)
+vaderSentiment>=3.3.2
+
+# Optional: better lemmatisation (WordNet) and alternative sentiment backend
+# nltk>=3.8
+# textblob>=0.17
