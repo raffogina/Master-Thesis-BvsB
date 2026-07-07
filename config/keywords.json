@@ -37,7 +37,7 @@
   ],
 
   "gate": {
-    "_rule": "A thread passes the gate when (A) its title+body contain at least one strong decision phrase, OR a weak decision verb together with a software noun; AND (B) there is legal-domain evidence: a legal term, OR the thread sits in a 'specialist' subreddit, OR a legal-specific provider is named. Providers are NOT required to pass the gate (they are measured variables, not filters).",
+    "_rule": "Corpus tiering (title+body only). TIER 1 'decision threads': (strong decision phrase, OR weak decision verb together with a software noun) AND legal-domain evidence (legal term, OR 'specialist' subreddit, OR legal-specific provider named). TIER 2 'discourse threads': no decision phrasing, but legal-domain evidence AND tech context (software noun or any provider) AND at least one study factor or provider mentioned - kept so factor talk without explicit decisions still counts. Everything else is excluded as off-topic. Report headline factor salience on tier 1; use tier 1+2 for the discourse-wide view and as robustness check.",
     "strong_phrases": [
       "build vs buy", "build or buy", "buy vs build", "buy or build", "build versus buy",
       "in house", "inhouse", "built our own", "build our own", "building our own",
@@ -84,7 +84,7 @@
   },
 
   "factors": {
-    "_rule": "Deductive decision-factor dictionaries (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013). Sources below are SUGGESTIONS drawn from canonical literature - read and confirm each before citing. Salience = share of gated threads mentioning the factor; tone = mean VADER compound of sentences mentioning it.",
+    "_rule": "Deductive decision-factor dictionaries (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013). Sources below are SUGGESTIONS drawn from canonical literature - read and confirm each before citing. Salience = share of threads mentioning the factor (reported per tier); tone = mean VADER compound of sentences mentioning it. BEFORE freezing this list, run the step-B cross-check: review high-frequency uncovered terms in term_discovery.csv and add any missing factor the discourse surfaces.",
     "cost_roi": {
       "label": "Cost / ROI / TCO",
       "suggested_source": "Williamson (1985) transaction-cost economics; Ellram (1995) total cost of ownership; Daneshgar et al. (2013)",
@@ -143,7 +143,8 @@
   },
 
   "providers": {
-    "_rule": "Measured variables (the market barometer), not gate filters. Replace/extend this list with a citable market taxonomy (e.g. Stanford CodeX Techindex, Legaltech Hub, or the Legal Tech Monitor list you mentioned) and state the cut-off date. legal_specific=true entries also count as legal-domain evidence in the gate.",
+    "_rule": "Measured variables (the market barometer), not gate filters. Replace/extend this list with a citable market taxonomy and state the cut-off date. legal_specific=true entries also count as legal-domain evidence in the tier rule.",
+    "_source": "TODO: cite the taxonomy used for this list (per decision D3: e.g. Legal Tech Monitor 2025, Stanford CodeX Techindex, or Legaltech Hub) and the retrieval date.",
     "_known_ambiguities": "harvey (person name), gavel (object), relativity (physics), kira (person name), vincent (person name -> matched only as 'vincent ai'), copilot (generic aviation term). Spot-check these in manual validation.",
     "entries": [
       {"name": "Harvey",            "patterns": ["harvey"],                                        "category": "legal_ai_assistant", "legal_specific": true},

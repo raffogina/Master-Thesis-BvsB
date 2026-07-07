@@ -7,26 +7,33 @@ Pipeline:
   1. COLLECT   search each subreddit with the queries in config/keywords.json via
                Reddit's public JSON endpoints (rate-limited, retried, cached to disk
                so analysis can be re-run offline without re-scraping).
-  2. GATE      keep a thread only if title+body show explicit decision context AND
-               legal-domain evidence (single documented rule; see config "gate").
-  3. MEASURE   per gated thread: decision-stance heuristic (build/buy leaning),
+  2. TIER      assign each thread to a corpus tier (documented in config "gate"):
+                 tier 1  explicit decision context AND legal-domain evidence
+                 tier 2  no explicit decision context, but legal-domain evidence,
+                         a tech context, and at least one study factor or provider
+                 excluded otherwise (off-topic noise)
+  3. MEASURE   per kept thread: decision-stance heuristic (build/buy leaning),
                decision-factor mentions, provider mentions, and VADER sentiment
                (original post = author-satisfaction proxy; comments = community
                reaction; sentence-level tone per factor and provider).
-  4. AGGREGATE factor salience table, provider barometer, per-thread master table
-               with empty manual-annotation columns, and an optional cleaned/
-               lemmatised keyword-frequency table (replacement of the v1 output).
+  4. AGGREGATE factor salience per tier, provider barometer, per-thread master
+               table with empty manual-annotation columns, and Porter-stemmed
+               term-discovery tables for the factor-gap check (step B).
 
 Outputs (in --out, default ./out):
-  threads_master.csv     one row per gated thread
-  factor_salience.csv    factor x coverage x tone
+  threads_master.csv     one row per kept thread (incl. corpus_tier)
+  factor_salience.csv    factor x coverage x tone, split by tier
   provider_mentions.csv  provider x coverage x tone
-  keyword_frequency.csv  lemmatised inductive word counts (disable with --no-legacy)
+  term_discovery.csv     stemmed corpus vocabulary with dictionary-coverage flags
+                         (review 'uncovered' high-frequency terms BEFORE freezing
+                         the factor list - the deductive/inductive cross-check)
+  keyword_frequency.csv  per-thread stemmed counts (annex continuity with v1)
   run_summary.txt        parameters + per-subreddit yield (for the Methodology section)
 
 Method references: VADER sentiment (Hutto & Gilbert 2014); dictionary-based content
-analysis (Krippendorff 2018; Grimmer & Stewart 2013); Reddit research practice and
-ethics (Proferes et al. 2021). No usernames are collected or stored.
+analysis (Krippendorff 2018; Grimmer & Stewart 2013); Porter stemming (Porter 1980);
+Reddit research practice and ethics (Proferes et al. 2021).
+No usernames are collected or stored.
 """
 
 import argparse
@@ -42,7 +49,7 @@ from datetime import datetime, timezone
 
 import requests
 
-DEFAULT_USER_AGENT = "python:build-vs-buy-thesis-scraper:v2.0 (academic research; MLB thesis)"
+DEFAULT_USER_AGENT = "python:build-vs-buy-thesis-scraper:v2.1 (academic research; MLB thesis)"
 
 # Minimal standard English stop list (union of the common core of the NLTK and
 # scikit-learn lists); extended at runtime by config legacy_keywords.extra_stopwords.
@@ -92,31 +99,34 @@ def count_matches(pattern, text):
 
 
 # ---------------------------------------------------------------------------
-# Lemmatisation (folds plural/singular so 'firm'/'firms' count together)
+# Stemming (step-B discovery: folds plural/singular and verb/derived forms so
+# every variant of a word is summed together before human review)
 # ---------------------------------------------------------------------------
 
-def build_lemmatizer():
-    """Prefer NLTK WordNet; fall back to conservative suffix rules."""
+def build_stemmer():
+    """Prefer NLTK's Porter stemmer (Porter 1980, no corpus downloads needed);
+    fall back to conservative suffix rules if NLTK is not installed.
+
+    A stemmer is used here instead of the WordNet lemmatiser on purpose: the
+    discovery table must maximise recall of word variants (build/builds/
+    building/builder all fold together), while the WordNet lemmatiser without
+    POS tagging only folds noun plurals ('building' stays 'building').
+    Over-stemmed forms are never shown raw: each stem is displayed through its
+    most frequent surface form in the corpus.
+    """
     try:
-        import nltk
-        from nltk.stem import WordNetLemmatizer
-        lem = WordNetLemmatizer()
-        try:
-            lem.lemmatize("firms")
-        except LookupError:
-            nltk.download("wordnet", quiet=True)
-            lem.lemmatize("firms")
-        return lem.lemmatize, "nltk-wordnet"
+        from nltk.stem import PorterStemmer
+        stemmer = PorterStemmer()
+        return stemmer.stem, "NLTK PorterStemmer (Porter 1980)"
     except Exception:
         def fold(word):
-            if len(word) > 4 and word.endswith("ies"):
-                return word[:-3] + "y"
-            if len(word) > 4 and word.endswith(("ches", "shes", "sses", "xes", "zes")):
-                return word[:-2]
-            if len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us", "is")):
-                return word[:-1]
+            for suffix in ("ations", "ation", "ings", "ing", "ers", "er",
+                           "edly", "ed", "ies", "es", "s"):
+                if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+                    stem = word[: -len(suffix)]
+                    return stem + "y" if suffix == "ies" else stem
             return word
-        return fold, "suffix-rules (install nltk for WordNet lemmatisation)"
+        return fold, "suffix-rules (install nltk for Porter stemming)"
 
 
 # ---------------------------------------------------------------------------
@@ -326,29 +336,49 @@ class Analyzer:
         self.stopwords = BASE_STOPWORDS | set(legacy["extra_stopwords"])
         self.min_count = legacy["min_count"]
         self.min_len = legacy["min_token_len"]
-        self.lemmatize, self.lemma_backend = build_lemmatizer()
+        self.stem, self.stem_backend = build_stemmer()
 
-    # -- gating ------------------------------------------------------------
-    def gate(self, subreddit, title, selftext):
-        """Return (passes: bool, reason: str). Rule documented in config."""
+    # -- corpus tiering ------------------------------------------------------
+    def tier(self, subreddit, title, selftext):
+        """Assign a corpus tier from title+body (rule documented in config).
+
+        tier 1: explicit decision context AND legal-domain evidence
+        tier 2: legal-domain evidence AND tech context AND >=1 factor/provider
+        tier 0: excluded (off-topic noise)
+        Tiering uses only title+body so the pre-download filter and the final
+        analysis apply the identical rule.
+        """
         head = clean_text(f"{title}\n{selftext}")
+
+        provider_hit = None
+        legal_provider_hit = None
+        for name, _cat, legal_specific, pattern in self.providers:
+            if count_matches(pattern, head):
+                provider_hit = provider_hit or name
+                if legal_specific:
+                    legal_provider_hit = legal_provider_hit or name
+
+        legal_domain = (bool(count_matches(self.re_legal, head))
+                        or subreddit.lower() in self.specialist_subs
+                        or bool(legal_provider_hit))
+        if not legal_domain:
+            return 0, "no legal-domain evidence"
+
         decision = None
         if count_matches(self.re_strong, head):
             decision = "strong-phrase"
         elif count_matches(self.re_weak, head) and count_matches(self.re_nouns, head):
             decision = "weak-verb+software-noun"
-        if not decision:
-            return False, "no decision context"
-        if count_matches(self.re_legal, head):
-            return True, f"{decision} & legal-term"
-        if subreddit.lower() in self.specialist_subs:
-            return True, f"{decision} & specialist-subreddit"
-        for name, _cat, legal_specific, pattern in self.providers:
-            if legal_specific and count_matches(pattern, head):
-                return True, f"{decision} & legal-provider ({name})"
-        return False, "decision context but no legal-domain evidence"
+        if decision:
+            return 1, f"decision context ({decision})"
 
-    # -- sentiment helpers ---------------------------------------------------
+        tech_context = bool(count_matches(self.re_nouns, head)) or bool(provider_hit)
+        factor_hit = any(count_matches(p, head) for _lbl, p in self.factors.values())
+        if tech_context and (factor_hit or provider_hit):
+            return 2, "discourse (factor/provider without decision phrasing)"
+        return 0, "legal domain but no tech/factor context"
+
+    # -- sentiment helpers -----------------------------------------------------
     def sentiment_of(self, text):
         if not self.score or not text.strip():
             return None
@@ -363,7 +393,7 @@ class Analyzer:
             return "negative"
         return "neutral"
 
-    # -- per-thread measurement ----------------------------------------------
+    # -- per-thread measurement --------------------------------------------------
     def measure(self, op_text, comment_texts):
         full_text = " \n ".join([op_text] + comment_texts)
         sents = sentences_of(full_text)
@@ -411,17 +441,35 @@ class Analyzer:
             "comments_sentiment": comments_mean, "comments_label": self.label_of(comments_mean),
         }
 
-    # -- legacy inductive keyword counts --------------------------------------
-    def keyword_counts(self, full_text):
+    # -- step-B discovery: stemmed vocabulary ------------------------------------
+    def stem_counts(self, full_text):
+        """Return (stem Counter, {stem: surface-form Counter}) for one thread."""
         counts = Counter()
+        surfaces = {}
         for tok in tokenize(clean_text(full_text)):
             if len(tok) < self.min_len or tok in self.stopwords:
                 continue
-            lemma = self.lemmatize(tok)
-            if len(lemma) < self.min_len or lemma in self.stopwords:
-                continue
-            counts[lemma] += 1
-        return {w: c for w, c in counts.items() if c >= self.min_count}
+            stem = self.stem(tok)
+            counts[stem] += 1
+            surfaces.setdefault(stem, Counter())[tok] += 1
+        return counts, surfaces
+
+    def coverage_of(self, surface_forms):
+        """Which existing dictionaries already cover any of these surface forms?"""
+        probe = " ".join(surface_forms)
+        covered = []
+        for key, (_label, pattern) in self.factors.items():
+            if count_matches(pattern, probe):
+                covered.append(f"factor:{key}")
+        for name, _cat, _ls, pattern in self.providers:
+            if count_matches(pattern, probe):
+                covered.append(f"provider:{name}")
+        if (count_matches(self.re_strong, probe) or count_matches(self.re_build, probe)
+                or count_matches(self.re_buy, probe)):
+            covered.append("gate/stance")
+        if count_matches(self.re_nouns, probe) or count_matches(self.re_legal, probe):
+            covered.append("context-term")
+        return "; ".join(covered)
 
 
 # ---------------------------------------------------------------------------
@@ -459,9 +507,9 @@ def run(args):
     queries = ([q.strip() for q in args.queries.split(";") if q.strip()]
                if args.queries else config["queries"])
 
-    print("🚀 Build-vs-Buy pipeline v2")
+    print("🚀 Build-vs-Buy pipeline v2.1")
     print(f"   sentiment backend : {analyzer.sentiment_backend}")
-    print(f"   lemmatiser        : {analyzer.lemma_backend}")
+    print(f"   stemmer           : {analyzer.stem_backend}")
     print(f"   subreddits        : {len(subreddits)} | queries: {len(queries)}")
 
     stats = {}
@@ -479,7 +527,7 @@ def run(args):
                               args.user_agent)
         seen = set()
         for sub in subreddits:
-            stats[sub] = {"results": 0, "gated_in": 0, "fetched": 0}
+            stats[sub] = {"results": 0, "tier1": 0, "tier2": 0, "fetched": 0}
             print(f"🔍 r/{sub}")
             for query in queries:
                 for post in client.search(sub, query, args.limit, args.pages):
@@ -488,13 +536,13 @@ def run(args):
                         continue
                     seen.add(thread_id)
                     stats[sub]["results"] += 1
-                    # Pre-gate on the search result itself: saves one full
+                    # Pre-filter on the search result itself: saves one full
                     # thread download per off-topic result (rate-limit budget).
-                    passes, _ = analyzer.gate(sub, post.get("title", ""),
-                                              post.get("selftext", ""))
-                    if not passes:
+                    tier, _ = analyzer.tier(sub, post.get("title", ""),
+                                            post.get("selftext", ""))
+                    if tier == 0:
                         continue
-                    stats[sub]["gated_in"] += 1
+                    stats[sub][f"tier{tier}"] += 1
                     wrapper = client.fetch_thread(sub, thread_id,
                                                   post.get("permalink", ""))
                     if wrapper:
@@ -502,21 +550,24 @@ def run(args):
                         wrappers.append(wrapper)
                 time.sleep(client.sleep_thread)
             time.sleep(client.sleep_sub)
-            print(f"   -> {stats[sub]['results']} unique results, "
-                  f"{stats[sub]['gated_in']} passed gate, "
-                  f"{stats[sub]['fetched']} downloaded")
+            print(f"   -> {stats[sub]['results']} unique results | "
+                  f"tier1 {stats[sub]['tier1']} | tier2 {stats[sub]['tier2']} | "
+                  f"downloaded {stats[sub]['fetched']}")
 
-    # ---- per-thread analysis ------------------------------------------------
+    # ---- per-thread analysis --------------------------------------------------
     master_rows = []
-    keyword_rows = []
-    factor_agg = {}    # key -> dict(threads, mentions, tones[])
-    provider_agg = {}  # name -> dict(category, threads, mentions, tones[])
+    keyword_rows_raw = []   # (sub, url, stem, count) -> display form filled later
+    factor_agg = {}         # key -> {"label", tiers: {1: {...}, 2: {...}}}
+    provider_agg = {}       # name -> {"category", "threads", "t1_threads", "mentions", "tones"}
+    stem_total = Counter()
+    stem_threads = Counter()
+    stem_surfaces = {}
 
     for wrapper in wrappers:
         sub = wrapper["subreddit"]
         title, selftext, comments, meta = load_wrapper_texts(wrapper)
-        passes, reason = analyzer.gate(sub, title, selftext)
-        if not passes:
+        tier, reason = analyzer.tier(sub, title, selftext)
+        if tier == 0:
             continue
         op_text = f"{title}\n{selftext}".strip()
         result = analyzer.measure(op_text, comments)
@@ -530,7 +581,8 @@ def run(args):
             "post_score": meta["score"],
             "num_comments_reported": meta["num_comments"],
             "n_comments_scraped": len(comments),
-            "gate_reason": reason,
+            "corpus_tier": tier,
+            "tier_reason": reason,
             "stance_heuristic": result["stance"],
             "build_signal_hits": result["build_hits"],
             "buy_signal_hits": result["buy_hits"],
@@ -548,33 +600,40 @@ def run(args):
         })
 
         for key, (label, mentions, tone) in result["factors"].items():
-            agg = factor_agg.setdefault(key, {"label": label, "threads": 0,
-                                              "mentions": 0, "tones": []})
-            agg["threads"] += 1
-            agg["mentions"] += mentions
+            agg = factor_agg.setdefault(key, {"label": label, "tiers": {}})
+            bucket = agg["tiers"].setdefault(tier, {"threads": 0, "mentions": 0, "tones": []})
+            bucket["threads"] += 1
+            bucket["mentions"] += mentions
             if tone is not None:
-                agg["tones"].append(tone)
+                bucket["tones"].append(tone)
 
         for name, (category, mentions, tone) in result["providers"].items():
             agg = provider_agg.setdefault(name, {"category": category, "threads": 0,
-                                                 "mentions": 0, "tones": []})
+                                                 "t1_threads": 0, "mentions": 0, "tones": []})
             agg["threads"] += 1
+            agg["t1_threads"] += 1 if tier == 1 else 0
             agg["mentions"] += mentions
             if tone is not None:
                 agg["tones"].append(tone)
 
+        # step-B discovery accumulation (whole corpus, both tiers)
+        full_text = " \n ".join([op_text] + comments)
+        counts, surfaces = analyzer.stem_counts(full_text)
+        for stem, count in counts.items():
+            stem_total[stem] += count
+            stem_threads[stem] += 1
+            stem_surfaces.setdefault(stem, Counter()).update(surfaces[stem])
         if not args.no_legacy:
-            full_text = " \n ".join([op_text] + comments)
-            for lemma, count in sorted(analyzer.keyword_counts(full_text).items(),
-                                       key=lambda kv: -kv[1]):
-                keyword_rows.append({"subreddit": sub,
-                                     "thread_url": wrapper["thread_url"],
-                                     "lemma": lemma, "count": count})
+            for stem, count in counts.items():
+                if count >= analyzer.min_count:
+                    keyword_rows_raw.append((sub, wrapper["thread_url"], stem, count))
 
     n_threads = len(master_rows)
-    print(f"\n📊 {n_threads} threads passed the gate and were analysed.")
+    n_tier1 = sum(1 for r in master_rows if r["corpus_tier"] == 1)
+    n_tier2 = n_threads - n_tier1
+    print(f"\n📊 {n_threads} threads kept ({n_tier1} decision-tier, {n_tier2} discourse-tier).")
 
-    # ---- write outputs -------------------------------------------------------
+    # ---- write outputs ---------------------------------------------------------
     def write_csv(name, fieldnames, rows):
         path = os.path.join(args.out, name)
         with open(path, "w", newline="", encoding="utf-8") as fh:
@@ -586,20 +645,43 @@ def run(args):
     if master_rows:
         write_csv("threads_master.csv", list(master_rows[0].keys()), master_rows)
 
+    def tier_cells(bucket, base):
+        if not bucket:
+            return 0, 0, ""
+        tones = bucket["tones"]
+        tone = round(sum(tones) / len(tones), 4) if tones else ""
+        pct = round(100 * bucket["threads"] / base, 1) if base else 0
+        return bucket["threads"], pct, tone
+
     factor_rows = []
-    for key, agg in sorted(factor_agg.items(), key=lambda kv: -kv[1]["threads"]):
-        tones = agg["tones"]
+    for key, agg in sorted(factor_agg.items(),
+                           key=lambda kv: -sum(b["threads"] for b in kv[1]["tiers"].values())):
+        t1 = agg["tiers"].get(1)
+        t2 = agg["tiers"].get(2)
+        t1_threads, t1_pct, t1_tone = tier_cells(t1, n_tier1)
+        t2_threads, t2_pct, t2_tone = tier_cells(t2, n_tier2)
+        all_threads = t1_threads + t2_threads
+        all_mentions = sum(b["mentions"] for b in agg["tiers"].values())
+        all_tones = [t for b in agg["tiers"].values() for t in b["tones"]]
         factor_rows.append({
             "factor": key,
             "label": agg["label"],
-            "n_threads": agg["threads"],
-            "pct_of_threads": round(100 * agg["threads"] / n_threads, 1) if n_threads else 0,
-            "total_mentions": agg["mentions"],
-            "mean_sentence_sentiment": round(sum(tones) / len(tones), 4) if tones else "",
+            "n_threads_decision": t1_threads,
+            "pct_decision_threads": t1_pct,
+            "tone_decision": t1_tone,
+            "n_threads_discourse": t2_threads,
+            "pct_discourse_threads": t2_pct,
+            "tone_discourse": t2_tone,
+            "n_threads_all": all_threads,
+            "pct_all_threads": round(100 * all_threads / n_threads, 1) if n_threads else 0,
+            "total_mentions": all_mentions,
+            "tone_all": round(sum(all_tones) / len(all_tones), 4) if all_tones else "",
         })
     write_csv("factor_salience.csv",
-              ["factor", "label", "n_threads", "pct_of_threads",
-               "total_mentions", "mean_sentence_sentiment"], factor_rows)
+              ["factor", "label", "n_threads_decision", "pct_decision_threads",
+               "tone_decision", "n_threads_discourse", "pct_discourse_threads",
+               "tone_discourse", "n_threads_all", "pct_all_threads",
+               "total_mentions", "tone_all"], factor_rows)
 
     provider_rows = []
     for name, agg in sorted(provider_agg.items(),
@@ -609,42 +691,82 @@ def run(args):
             "provider": name,
             "category": agg["category"],
             "n_threads": agg["threads"],
+            "n_threads_decision": agg["t1_threads"],
             "pct_of_threads": round(100 * agg["threads"] / n_threads, 1) if n_threads else 0,
             "total_mentions": agg["mentions"],
             "mean_sentence_sentiment": round(sum(tones) / len(tones), 4) if tones else "",
         })
     write_csv("provider_mentions.csv",
-              ["provider", "category", "n_threads", "pct_of_threads",
-               "total_mentions", "mean_sentence_sentiment"], provider_rows)
+              ["provider", "category", "n_threads", "n_threads_decision",
+               "pct_of_threads", "total_mentions", "mean_sentence_sentiment"],
+              provider_rows)
+
+    # step-B discovery table: review 'uncovered' terms before freezing factors
+    display = {stem: surfaces.most_common(1)[0][0]
+               for stem, surfaces in stem_surfaces.items()}
+    discovery_rows = []
+    for stem, total in stem_total.most_common():
+        if total < analyzer.min_count:
+            continue
+        top_surfaces = [s for s, _ in stem_surfaces[stem].most_common(3)]
+        discovery_rows.append({
+            "stem": stem,
+            "display_form": display[stem],
+            "surface_forms": "; ".join(top_surfaces),
+            "total_count": total,
+            "n_threads": stem_threads[stem],
+            "pct_of_threads": round(100 * stem_threads[stem] / n_threads, 1) if n_threads else 0,
+            "covered_by": analyzer.coverage_of(top_surfaces),
+        })
+    write_csv("term_discovery.csv",
+              ["stem", "display_form", "surface_forms", "total_count",
+               "n_threads", "pct_of_threads", "covered_by"], discovery_rows)
 
     if not args.no_legacy:
+        keyword_rows = [{"subreddit": s, "thread_url": u,
+                         "term": display.get(stem, stem), "stem": stem, "count": c}
+                        for s, u, stem, c in sorted(keyword_rows_raw,
+                                                    key=lambda r: (r[0], r[1], -r[3]))]
         write_csv("keyword_frequency.csv",
-                  ["subreddit", "thread_url", "lemma", "count"], keyword_rows)
+                  ["subreddit", "thread_url", "term", "stem", "count"], keyword_rows)
 
-    # ---- run summary (for the Methodology / Results sections) ---------------
+    # ---- run summary (for the Methodology / Results sections) ------------------
     summary_path = os.path.join(args.out, "run_summary.txt")
     with open(summary_path, "w", encoding="utf-8") as fh:
         fh.write(f"Run finished: {datetime.now(timezone.utc).isoformat()}\n")
         fh.write(f"Sentiment backend: {analyzer.sentiment_backend}\n")
-        fh.write(f"Lemmatiser: {analyzer.lemma_backend}\n")
+        fh.write(f"Stemmer: {analyzer.stem_backend}\n")
         fh.write(f"Queries: {queries}\n")
         fh.write(f"Subreddits: {subreddits}\n")
-        fh.write(f"Threads analysed (post-gate): {n_threads}\n")
+        fh.write(f"Threads kept: {n_threads} "
+                 f"(decision-tier: {n_tier1}, discourse-tier: {n_tier2})\n")
         dates = sorted(r["created_utc"] for r in master_rows if r["created_utc"])
         if dates:
             fh.write(f"Thread date range: {dates[0]} to {dates[-1]}\n")
         if stats:
-            fh.write("\nPer-subreddit yield (unique results / gate passed / downloaded):\n")
+            fh.write("\nPer-subreddit yield (unique results / tier1 / tier2 / downloaded):\n")
             for sub, s in stats.items():
-                fh.write(f"  r/{sub}: {s['results']} / {s['gated_in']} / {s['fetched']}\n")
-        fh.write("\nTop factors by thread coverage:\n")
-        for row in factor_rows[:10]:
-            fh.write(f"  {row['label']}: {row['n_threads']} threads "
-                     f"({row['pct_of_threads']}%), tone {row['mean_sentence_sentiment']}\n")
+                fh.write(f"  r/{sub}: {s['results']} / {s['tier1']} / "
+                         f"{s['tier2']} / {s['fetched']}\n")
+        fh.write("\nTop factors by decision-tier coverage:\n")
+        for row in factor_rows[:12]:
+            fh.write(f"  {row['label']}: {row['n_threads_decision']} decision threads "
+                     f"({row['pct_decision_threads']}%), tone {row['tone_decision']} "
+                     f"| all: {row['n_threads_all']} ({row['pct_all_threads']}%)\n")
         fh.write("\nTop providers by thread coverage:\n")
         for row in provider_rows[:15]:
             fh.write(f"  {row['provider']} [{row['category']}]: {row['n_threads']} threads, "
                      f"{row['total_mentions']} mentions, tone {row['mean_sentence_sentiment']}\n")
+        fh.write("\nTop UNCOVERED candidate terms (factor-gap check, step B):\n")
+        shown = 0
+        for row in discovery_rows:
+            if row["covered_by"]:
+                continue
+            fh.write(f"  {row['display_form']} ({row['surface_forms']}): "
+                     f"{row['total_count']} mentions in {row['n_threads']} threads\n")
+            shown += 1
+            if shown >= 15:
+                break
     print(f"   💾 {summary_path}")
     print("🎉 Done.")
 
@@ -667,7 +789,7 @@ def main():
     parser.add_argument("--sentiment", choices=["auto", "vader", "textblob", "none"],
                         default="auto")
     parser.add_argument("--no-legacy", action="store_true",
-                        help="skip the inductive keyword_frequency.csv output")
+                        help="skip the per-thread keyword_frequency.csv output")
     parser.add_argument("--subreddits", default="",
                         help="comma-separated override of the config subreddit list")
     parser.add_argument("--queries", default="",

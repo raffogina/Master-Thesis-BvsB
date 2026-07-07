@@ -15,8 +15,9 @@ debate building versus buying software, and turns them into four analysable tabl
    *customers*, `"gc"` matched anything containing those letters. This is how the
    airport-land-seizure and buy-pants threads entered the dataset. v2 matches whole
    words/phrases only.
-2. **No lemmatisation.** *firm/firms*, *tool/tools*, *update/updated/updates* were counted
-   as different words. v2 folds them (NLTK WordNet if installed, suffix rules otherwise).
+2. **No word-form folding.** *firm/firms*, *tool/tools*, *update/updated/updates* were
+   counted as different words. v2 folds all variants with a Porter stemmer (suffix rules
+   as fallback if NLTK is absent) and displays each stem's most frequent surface form.
 3. **Stop-word gaps.** *month, got, here, ve, re, don, https, com* etc. polluted the
    output. v2 uses a standard English stop list plus a documented domain extension, and
    strips URLs/contractions before counting.
@@ -39,14 +40,23 @@ debate building versus buying software, and turns them into four analysable tabl
 ```
 COLLECT  search each subreddit for the config queries (public JSON, rate-limited,
          every thread cached to disk -> re-analysis never re-scrapes)
-GATE     keep a thread iff (strong decision phrase OR weak decision verb + software noun)
-         AND (legal term OR specialist subreddit OR legal-specific provider)
+TIER     tier 1 "decision threads":  (strong decision phrase OR decision verb +
+           software noun) AND legal-domain evidence
+         tier 2 "discourse threads": no decision phrasing, but legal-domain
+           evidence AND tech context AND >=1 study factor or provider
+         excluded: everything else (off-topic noise)
 MEASURE  stance heuristic (build/buy-leaning), factor mentions, provider mentions,
          VADER sentiment: original post (author satisfaction proxy), comments
          (community reaction), sentence-level tone per factor/provider
-OUTPUT   threads_master.csv, factor_salience.csv, provider_mentions.csv,
-         keyword_frequency.csv (legacy view), run_summary.txt
+OUTPUT   threads_master.csv, factor_salience.csv (split by tier),
+         provider_mentions.csv, term_discovery.csv, keyword_frequency.csv,
+         run_summary.txt
 ```
+
+Report headline factor salience on tier 1 (factors *in decision contexts* — what the
+research questions ask); use tier 1+2 for the discourse-wide view and as a robustness
+check. Threads that discuss factors without explicit decision language are therefore
+kept, just labelled, so nothing representative of the legal-tech discourse is lost.
 
 ### Run
 
@@ -62,10 +72,31 @@ python3 scraper_v2.py --subreddits legaltech,lawfirm --limit 50   # pilot run
 | File | Feeds |
 |---|---|
 | `threads_master.csv` | corpus description (§3.3), stance × sentiment cross-tab (satisfaction with build vs buy), manual annotation columns for validation |
-| `factor_salience.csv` | RQ(ii)/(iii): which factors appear, how often, with what tone — the core results table |
+| `factor_salience.csv` | RQ(ii)/(iii): which factors appear, how often, with what tone — per tier; the core results table |
 | `provider_mentions.csv` | vendor-landscape barometer (§4.2), category-level build vs buy discussion |
-| `keyword_frequency.csv` | exploratory annex only (inductive view, now cleaned) |
-| `run_summary.txt` | numbers for §2 and §3.1 (yield per subreddit, date range, backends) |
+| `term_discovery.csv` | step-B factor-gap check (see below) — do this BEFORE freezing the factor list |
+| `keyword_frequency.csv` | exploratory annex only (per-thread stemmed counts, v1 continuity) |
+| `run_summary.txt` | numbers for §2 and §3.1 (yield per subreddit, tier counts, date range, backends) |
+
+## Step B: factor-gap check (run before finalising the factor list)
+
+Workflow: (1) draft the factor list from literature; (2) run the pipeline; (3) open
+`term_discovery.csv`, filter rows with an empty `covered_by` column, and review the
+high-frequency terms — each is a candidate factor the literature list might be missing
+(the run summary prints the top 15); (4) add any genuine factor to the config and re-run
+with `--reanalyze` (no re-scraping needed); (5) freeze the list and report the check in §2.
+
+Why a **Porter stemmer** here instead of the WordNet lemmatiser: the discovery table must
+maximise *recall* of word variants — build/builds/building/builder fold together, as do
+integration/integrations/integrate. The WordNet lemmatiser without part-of-speech tagging
+only folds noun plurals ("building" stays "building"), which would fragment exactly the
+verb-heavy decision vocabulary this check is looking for. Over-stemming (stems like
+"integr") is cosmetic only: every stem is displayed via its most frequent surface form,
+and a human reviews the list anyway. Precision is unaffected because the confirmatory
+factor matching (step A) uses the explicit wildcard dictionaries, not stems. Porter is the
+standard, citable choice (Porter 1980); English has no grammatical-gender inflection to
+handle, and if non-English subreddits are ever added, NLTK's Snowball stemmers cover
+Spanish and German.
 
 ## Validation protocol (do this before writing Results)
 
@@ -88,8 +119,10 @@ the ambiguous provider names listed in `config/keywords.json` (`_known_ambiguiti
 - Proferes, N., Jones, N., Gilbert, S., Fiesler, C. & Zimmer, M. (2021). *Studying Reddit:
   A Systematic Overview of Disciplines, Approaches, Methods, and Ethics.* Social Media +
   Society 7(2). — subreddit sampling practice and research ethics.
+- Porter, M.F. (1980). *An algorithm for suffix stripping.* Program 14(3). — stemming in
+  the discovery step.
 - Bird, S., Klein, E. & Loper, E. (2009). *Natural Language Processing with Python.*
-  O'Reilly. — NLTK (stop words, lemmatisation). WordNet: Miller (1995), CACM 38(11).
+  O'Reilly. — NLTK implementation of stemming and stop-word handling.
 - Factor-dictionary sources are suggested per factor in `config/keywords.json`
   (Williamson 1985; Ellram 1995; Davis 1989; Shapiro & Varian 1999; Morgan & Hunt 1994;
   Barney 1991; Lacity & Hirschheim 1993; Daneshgar et al. 2013; Dahl et al. 2024).
