@@ -49,7 +49,8 @@ from datetime import datetime, timezone
 
 import requests
 
-DEFAULT_USER_AGENT = "python:build-vs-buy-thesis-scraper:v2.1 (academic research; MLB thesis)"
+DEFAULT_USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 # Minimal standard English stop list (union of the common core of the NLTK and
 # scikit-learn lists); extended at runtime by config legacy_keywords.extra_stopwords.
