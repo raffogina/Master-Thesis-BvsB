@@ -88,12 +88,12 @@
     "cost_roi": {
       "label": "Cost / ROI / TCO",
       "suggested_source": "Williamson (1985) transaction-cost economics; Ellram (1995) total cost of ownership; Daneshgar et al. (2013)",
-      "terms": ["cost", "costs", "costly", "pricing", "price", "prices", "budget", "budgets", "roi", "expensive", "cheap", "cheaper", "fee", "fees", "tco", "total cost of ownership", "payback", "per seat", "per user", "business case", "break even", "breakeven"]
+      "terms": ["cost", "costs", "costly", "pricing", "price", "prices", "budget", "budgets", "roi", "expensive", "cheap", "cheaper", "fee", "fees", "tco", "total cost of ownership", "payback", "per seat", "per user", "business case", "break even", "breakeven", "value", "value for money", "cost effective", "cost efficient", "expense", "expenses", "depreciation", "amortization", "amortisation", "capex", "opex", "capital expenditure", "operating expense"]
     },
     "integration": {
       "label": "Integration with existing stack",
       "suggested_source": "Daneshgar et al. (2013); Lacity & Hirschheim (1993)",
-      "terms": ["integration", "integrations", "integrate", "integrates", "integrated", "api", "apis", "sso", "interoperab*", "connector", "connectors", "plug into", "works with", "sync", "syncs", "embed", "embedded"]
+      "terms": ["integration", "integrations", "integrate", "integrates", "integrated", "api", "apis", "sso", "interoperab*", "connector", "connectors", "plug into", "works with", "sync", "syncs", "embed", "embedded", "tech stack", "current stack", "existing stack", "existing systems", "legacy system", "legacy systems", "current tools", "existing tools", "current setup", "existing infrastructure", "legacy"]
     },
     "security_privacy_compliance": {
       "label": "Security / privacy / regulatory compliance",
@@ -103,17 +103,17 @@
     "lockin_dependency": {
       "label": "Vendor lock-in / dependency risk",
       "suggested_source": "Shapiro & Varian (1999) switching costs; thesis §4.3 dependency-risk concept",
-      "terms": ["lock in", "lockin", "locked in", "dependency", "dependent", "dependence", "vendor lock", "migration", "migrate", "exit strategy", "switching cost*", "stuck with", "hostage", "sunset", "shut down", "shutdown", "acquisition", "acquired", "price increase", "raise prices", "raised prices"]
+      "terms": ["lock in", "lockin", "locked in", "dependency", "dependent", "dependence", "vendor lock", "migration", "migrate", "exit strategy", "switching cost*", "stuck with", "hostage", "price increase", "raise prices", "raised prices", "offboarding fee", "exit fee", "too embedded", "deeply embedded", "get off boarded", "host our data", "data is hosted"]
     },
     "control_customization_ip": {
       "label": "Control / customization / IP ownership",
       "suggested_source": "Lacity & Hirschheim (1993); Barney (1991) resource-based view",
-      "terms": ["control", "customiz*", "customis*", "custom", "bespoke", "tailor*", "flexib*", "ownership", "own the", "ip rights", "intellectual property", "source code", "open source", "proprietary"]
+      "terms": ["control", "customiz*", "customis*", "custom", "bespoke", "tailor*", "flexib*", "ownership", "ip rights", "intellectual property", "own the code", "own the ip", "source code", "open source", "proprietary", "off the shelf", "off-the-shelf", "plug and play"]
     },
     "usability_adoption": {
-      "label": "Usability / adoption / change management",
+      "label": "Usability / adoption",
       "suggested_source": "Davis (1989) Technology Acceptance Model",
-      "terms": ["ux", "ui", "usability", "user friendly", "intuitive", "adoption", "adopt", "training", "learning curve", "change management", "onboarding", "clunky", "easy to use", "user experience"]
+      "terms": ["ux", "ui", "usability", "user friendly", "intuitive", "adoption", "adopt", "training", "learning curve", "onboarding", "clunky", "easy to use", "user experience"]
     },
     "maintenance_support": {
       "label": "Maintenance burden / vendor support",
@@ -123,22 +123,47 @@
     "time_to_value": {
       "label": "Time to market / speed of deployment",
       "suggested_source": "Daneshgar et al. (2013)",
-      "terms": ["time to market", "timeline", "deadline", "implementation time", "deploy*", "rollout", "roll out", "quick win", "mvp", "proof of concept", "poc", "months to build", "weeks to build", "faster to", "quicker to"]
+      "terms": ["time to market", "timeline", "deadline", "implementation time", "deploy*", "rollout", "roll out", "quick win", "mvp", "proof of concept", "poc", "months to build", "weeks to build", "faster to", "quicker to", "time consuming", "time constraints", "no time", "short on time", "time pressure", "takes time", "save time", "saves time", "saving time"]
     },
     "trust_vendor_relationship": {
-      "label": "Trust / vendor reputation & relationship",
+      "label": "Trust / vendor relationship / organizational change readiness",
       "suggested_source": "Morgan & Hunt (1994) commitment-trust theory",
-      "terms": ["trust", "trustworthy", "distrust", "reputation", "references", "reviews", "case studies", "sales team", "salespeople", "pilot", "relationship", "credib*", "track record", "vaporware", "snake oil"]
+      "terms": ["trust", "trustworthy", "distrust", "reputation", "references", "reviews", "case studies", "sales team", "salespeople", "relationship", "credib*", "track record", "change culture", "change management", "resistant to change", "change averse", "tech savvy", "digital transformation", "leadership buy in", "favorite vendor", "favourite vendor", "preferred vendor", "existing relationship", "long standing relationship", "board likes", "management likes"]
     },
-    "skills_resources": {
-      "label": "Internal skills / engineering resources",
+    "team_expertise": {
+      "label": "Team composition & in-house expertise",
       "suggested_source": "Barney (1991) resource-based view; vibe-coding claims (thesis §4.1)",
-      "terms": ["developer", "developers", "engineer", "engineers", "engineering team", "headcount", "hire", "hiring", "skills", "skillset", "expertise", "technical team", "it team", "it department", "no code", "low code", "non technical", "nontechnical", "staffing"]
+      "terms": ["developer", "developers", "engineer", "engineers", "engineering team", "technical team", "it team", "it department", "in house expertise", "in house talent", "existing team", "existing engineers", "non technical", "nontechnical", "no code", "low code", "vibe coding", "vibe coded", "skills", "skillset", "expertise", "capability", "capabilities", "upskill", "upskilling"]
+    },
+    "headcount_impact": {
+      "label": "Impact on headcount / staffing levels",
+      "suggested_source": "TODO - verify against workforce-automation literature (e.g. Acemoglu & Restrepo on automation and labor demand)",
+      "terms": ["headcount", "hire", "hiring", "new hire", "layoff", "layoffs", "reduce headcount", "reducing headcount", "replace staff", "cut staff", "cut jobs", "fewer people", "job cuts", "downsizing", "outsource", "outsourcing", "eliminate positions", "eliminate roles"]
     },
     "professional_risk_accuracy": {
       "label": "Professional risk / accuracy / hallucination",
       "suggested_source": "Dahl, Magesh, Suzgun & Ho (2024) 'Large Legal Fictions', J. Legal Analysis",
-      "terms": ["risk", "risks", "risky", "liab*", "malpractice", "ethic*", "professional responsibility", "hallucinat*", "accuracy", "accurate", "inaccurate", "wrong answer", "wrong citation", "fake case", "sanction*", "verify", "verification"]
+      "terms": ["risk", "risks", "risky", "liab*", "malpractice", "ethic*", "professional responsibility", "hallucinat*", "accuracy", "accurate", "inaccurate", "wrong answer", "wrong citation", "fake case", "sanction*", "verify", "verification", "risk appetite", "risk tolerance", "risk averse"]
+    },
+    "commercialization_potential": {
+      "label": "Commercialization potential of the built solution",
+      "suggested_source": "TODO - verify against internal-venture/spin-off literature (e.g. Chesbrough 2003 open innovation)",
+      "terms": ["commercializ*", "commercialis*", "monetiz*", "monetis*", "sell it", "sell the tool", "spin off", "spin out", "productiz*", "productis*", "resell", "turn into a product", "revenue stream", "sell to other firms", "white label", "white-label"]
+    },
+    "market_trend_following": {
+      "label": "Market trend-following / competitive positioning",
+      "suggested_source": "DiMaggio & Powell (1983) institutional isomorphism (mimetic pressure)",
+      "terms": ["competitive advantage", "competitor", "competitors", "market trend*", "trending", "keep up with", "keeping up with", "falling behind", "behind the curve", "industry standard", "everyone is using", "fomo", "first mover", "early adopter", "cutting edge", "state of the art", "stay ahead", "stay competitive"]
+    },
+    "company_characteristics": {
+      "label": "Company / legal department characteristics (scale, industry, expertise)",
+      "suggested_source": "TODO - verify against firm-size/IT-adoption contingency literature (e.g. Thong 1999)",
+      "terms": ["small firm", "large firm", "big firm", "boutique", "solo practitioner", "sole practitioner", "midsize", "mid size", "enterprise", "small business", "large company", "company size", "global firm", "regional firm", "industry", "sector", "practice area"]
+    },
+    "matter_complexity": {
+      "label": "Complexity of the matter / requirement flexibility",
+      "suggested_source": "Goodhue & Thompson (1995) task-technology fit",
+      "terms": ["complex", "complexity", "complicated", "simple", "simplicity", "requirements", "flexible requirements", "changing requirements", "one size fits all", "unique needs", "unique requirements", "niche use case", "specific needs", "ambiguous requirements", "unclear requirements"]
     }
   },
 
