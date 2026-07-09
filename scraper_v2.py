@@ -41,6 +41,7 @@ import csv
 import html
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -51,6 +52,21 @@ import requests
 
 DEFAULT_USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+COLLECTOR_NAME = "reddit-json (public .json endpoints)"
+
+
+def human_sleep(base):
+    """Sleep around `base` seconds with human-like variation.
+
+    Uniform jitter (0.7x-1.7x) breaks the fixed request beat, and a small
+    share of calls adds a longer 'reading' pause so the overall timing
+    pattern stays irregular rather than metronomic.
+    """
+    delay = base * random.uniform(0.7, 1.7)
+    if random.random() < 0.07:
+        delay += random.uniform(15, 40)
+    time.sleep(delay)
 
 # Minimal standard English stop list (union of the common core of the NLTK and
 # scikit-learn lists); extended at runtime by config legacy_keywords.extra_stopwords.
@@ -258,7 +274,7 @@ class RedditClient:
             after = data.get("data", {}).get("after")
             if not after:
                 return
-            time.sleep(self.sleep_thread)
+            human_sleep(self.sleep_thread)
 
     def fetch_thread(self, subreddit, thread_id, permalink):
         """Fetch (or load from cache) the full thread JSON listing."""
@@ -266,7 +282,7 @@ class RedditClient:
         if os.path.exists(cache_path):
             with open(cache_path, encoding="utf-8") as fh:
                 return json.load(fh)
-        time.sleep(self.sleep_thread)
+        human_sleep(self.sleep_thread)
         url = f"https://www.reddit.com{permalink}.json"
         data, status = self._get_json(url)
         if not isinstance(data, list) or len(data) < 2:
@@ -478,20 +494,45 @@ class Analyzer:
 # ---------------------------------------------------------------------------
 
 def load_wrapper_texts(wrapper):
-    """Extract (title, selftext, comment_texts, meta) from a cached listing."""
-    listing = wrapper["listing"]
-    post = listing[0]["data"]["children"][0]["data"]
-    title = post.get("title", "")
-    selftext = post.get("selftext", "")
-    if selftext in ("[deleted]", "[removed]"):
-        selftext = ""
-    comments = [clean_text(c) for c in walk_comments(listing[1]["data"]["children"])]
-    meta = {
-        "created": datetime.fromtimestamp(post.get("created_utc", 0), tz=timezone.utc)
-        .strftime("%Y-%m-%d") if post.get("created_utc") else "",
-        "score": post.get("score", ""),
-        "num_comments": post.get("num_comments", ""),
-    }
+    """Extract (title, selftext, comment_texts, meta) from a cached wrapper.
+
+    Two cache formats are supported so --reanalyze works across collectors:
+      - "listing": the raw Reddit JSON listing (reddit-json collector)
+      - "post":    pre-extracted texts written by non-JSON collectors
+    Returns None when the wrapper holds no post (deleted/empty thread).
+    """
+    if "listing" in wrapper:
+        listing = wrapper["listing"]
+        children = listing[0].get("data", {}).get("children", [])
+        if not children:
+            return None
+        post = children[0]["data"]
+        title = post.get("title", "")
+        selftext = post.get("selftext", "")
+        if selftext in ("[deleted]", "[removed]"):
+            selftext = ""
+        comments = [clean_text(c) for c in walk_comments(listing[1]["data"]["children"])]
+        meta = {
+            "created": datetime.fromtimestamp(post.get("created_utc", 0), tz=timezone.utc)
+            .strftime("%Y-%m-%d") if post.get("created_utc") else "",
+            "score": post.get("score", ""),
+            "num_comments": post.get("num_comments", ""),
+        }
+    else:
+        post = wrapper.get("post")
+        if not post:
+            return None
+        title = post.get("title", "")
+        selftext = post.get("selftext", "")
+        if selftext in ("[deleted]", "[removed]"):
+            selftext = ""
+        comments = [clean_text(c) for c in post.get("comments", [])
+                    if c and c not in ("[deleted]", "[removed]")]
+        meta = {
+            "created": post.get("created", ""),
+            "score": post.get("score", ""),
+            "num_comments": post.get("num_comments", ""),
+        }
     return clean_text(title), clean_text(selftext), comments, meta
 
 
@@ -509,6 +550,7 @@ def run(args):
                if args.queries else config["queries"])
 
     print("🚀 Build-vs-Buy pipeline v2.1")
+    print(f"   collector         : {COLLECTOR_NAME}")
     print(f"   sentiment backend : {analyzer.sentiment_backend}")
     print(f"   stemmer           : {analyzer.stem_backend}")
     print(f"   subreddits        : {len(subreddits)} | queries: {len(queries)}")
@@ -518,7 +560,8 @@ def run(args):
 
     if args.reanalyze:
         thread_dir = os.path.join(args.cache, "threads")
-        files = sorted(os.listdir(thread_dir)) if os.path.isdir(thread_dir) else []
+        files = (sorted(f for f in os.listdir(thread_dir) if f.endswith(".json"))
+                 if os.path.isdir(thread_dir) else [])
         print(f"♻️  Re-analysing {len(files)} cached threads (no network).")
         for fname in files:
             with open(os.path.join(thread_dir, fname), encoding="utf-8") as fh:
@@ -549,8 +592,8 @@ def run(args):
                     if wrapper:
                         stats[sub]["fetched"] += 1
                         wrappers.append(wrapper)
-                time.sleep(client.sleep_thread)
-            time.sleep(client.sleep_sub)
+                human_sleep(client.sleep_thread)
+            human_sleep(client.sleep_sub)
             print(f"   -> {stats[sub]['results']} unique results | "
                   f"tier1 {stats[sub]['tier1']} | tier2 {stats[sub]['tier2']} | "
                   f"downloaded {stats[sub]['fetched']}")
@@ -566,7 +609,10 @@ def run(args):
 
     for wrapper in wrappers:
         sub = wrapper["subreddit"]
-        title, selftext, comments, meta = load_wrapper_texts(wrapper)
+        extracted = load_wrapper_texts(wrapper)
+        if extracted is None:
+            continue
+        title, selftext, comments, meta = extracted
         tier, reason = analyzer.tier(sub, title, selftext)
         if tier == 0:
             continue
@@ -735,6 +781,7 @@ def run(args):
     summary_path = os.path.join(args.out, "run_summary.txt")
     with open(summary_path, "w", encoding="utf-8") as fh:
         fh.write(f"Run finished: {datetime.now(timezone.utc).isoformat()}\n")
+        fh.write(f"Collector: {COLLECTOR_NAME}\n")
         fh.write(f"Sentiment backend: {analyzer.sentiment_backend}\n")
         fh.write(f"Stemmer: {analyzer.stem_backend}\n")
         fh.write(f"Queries: {queries}\n")
