@@ -4,9 +4,16 @@ Build-vs-Buy Reddit evidence pipeline (v2)
 Master Thesis: "The 'Build vs. Buy' Dilemma in Legal Departments"
 
 Pipeline:
-  1. COLLECT   search each subreddit with the queries in config/keywords.json via
-               Reddit's public JSON endpoints (rate-limited, retried, cached to disk
-               so analysis can be re-run offline without re-scraping).
+  1. COLLECT   list the newest --pages x 100 threads of each subreddit from the
+               Arctic Shift research archive (continuously ingested Reddit
+               mirror, typical lag of hours; the archive approach follows
+               Pushshift, Baumgartner et al. 2020; no key or login needed) and
+               screen them locally against the study queries in
+               config/keywords.json. Used because Reddit 403-blocks anonymous
+               .json endpoints. Local screening of the full recent history is
+               a cleaner sampling frame than Reddit's relevance search (which
+               caps at ~250 results and ranks opaquely). Cached to disk so
+               analysis can be re-run offline.
   2. TIER      assign each thread to a corpus tier (documented in config "gate"):
                  tier 1  explicit decision context AND legal-domain evidence
                  tier 2  no explicit decision context, but legal-domain evidence,
@@ -53,7 +60,7 @@ import requests
 DEFAULT_USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-COLLECTOR_NAME = "reddit-json (public .json endpoints)"
+COLLECTOR_NAME = "arctic-shift archive (research mirror + local query screening)"
 
 
 def human_sleep(base):
@@ -220,31 +227,55 @@ def sentences_of(text):
 
 
 # ---------------------------------------------------------------------------
-# Reddit access (public JSON endpoints) with caching
+# Reddit access via the Arctic Shift research archive with caching
 # ---------------------------------------------------------------------------
 
-class RedditClient:
+ARCTIC_SHIFT = "https://arctic-shift.photon-reddit.com"
+
+
+class ArchiveClient:
+    """Collects from the Arctic Shift research archive of Reddit.
+
+    Arctic Shift (github.com/ArthurHeitmann/arctic_shift) ingests Reddit
+    continuously (typical lag: hours, verified) and serves posts/comments in
+    Reddit's own field schema, so the downstream pipeline is unchanged.
+
+    Its full-text search endpoint is intermittently under maintenance, so
+    collection instead lists the newest --pages x 100 posts per subreddit
+    once and screens them locally against each study query (title+selftext,
+    same wildcard/phrase rules as the dictionaries). Comments are fetched
+    by link_id, capped at MAX_COMMENTS per thread.
+    """
+
+    MAX_COMMENTS = 500  # same practical cap as a rendered Reddit thread page
+
     def __init__(self, cache_dir, sleep_thread, sleep_sub, user_agent):
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": user_agent})
         self.cache_dir = cache_dir
         self.sleep_thread = sleep_thread
         self.sleep_sub = sleep_sub
+        self._post_by_id = {}
+        self._listing_cache = {}
         os.makedirs(os.path.join(cache_dir, "threads"), exist_ok=True)
 
     def _get_json(self, url, params=None):
-        """GET with retry on 429 (rate limit) and connection drops."""
-        for attempt in range(4):
+        """GET with retry on rate limits (429/422), maintenance (503), drops."""
+        for attempt in range(5):
             try:
-                resp = self.session.get(url, params=params, timeout=30)
+                resp = self.session.get(url, params=params, timeout=60)
             except requests.exceptions.RequestException:
                 wait = 10 * (attempt + 1)
                 print(f"   🚨 Network drop. Retrying in {wait}s ...")
                 time.sleep(wait)
                 continue
-            if resp.status_code == 429:
-                print("   ⚠️ Rate-limited (429). Cooling down 70s ...")
-                time.sleep(70)
+            if resp.status_code in (429, 422):  # 422 = archive's slow-down signal
+                print("   ⚠️ Archive asks to slow down. Cooling 35s ...")
+                time.sleep(35)
+                continue
+            if resp.status_code == 503:
+                print("   ⚠️ Archive busy/maintenance (503). Retrying in 60s ...")
+                time.sleep(60)
                 continue
             if resp.status_code != 200:
                 return None, resp.status_code
@@ -254,45 +285,114 @@ class RedditClient:
                 return None, -1
         return None, -2
 
-    def search(self, subreddit, query, limit, pages):
-        """Yield search-result posts (dicts) for one subreddit+query."""
-        after = None
+    @staticmethod
+    def _query_pattern(query):
+        """Translate a Reddit-search query ('a OR b', '"x y" OR z') into one
+        locally applied regex, reusing the dictionary term rules (word
+        bounds, space==hyphen)."""
+        terms = [part.strip().strip('"').strip()
+                 for part in query.split(" OR ")]
+        return compile_terms([t for t in terms if t])
+
+    def _list_posts(self, subreddit, pages):
+        """Fetch (once per subreddit) the newest pages x 100 posts."""
+        if subreddit in self._listing_cache:
+            return self._listing_cache[subreddit]
+        posts, before = [], None
         for _ in range(pages):
-            params = {"q": query, "restrict_sr": "on", "sort": "relevance",
-                      "t": "all", "limit": min(limit, 100)}
-            if after:
-                params["after"] = after
-            data, status = self._get_json(
-                f"https://www.reddit.com/r/{subreddit}/search.json", params)
+            params = {"subreddit": subreddit, "limit": 100, "sort": "desc"}
+            if before is not None:
+                params["before"] = before
+            data, status = self._get_json(f"{ARCTIC_SHIFT}/api/posts/search",
+                                          params)
             if data is None:
-                print(f"   ⚠️ Search skipped for r/{subreddit} (status {status})")
-                return
-            children = data.get("data", {}).get("children", [])
-            for child in children:
-                if child.get("kind") == "t3":
-                    yield child["data"]
-            after = data.get("data", {}).get("after")
-            if not after:
-                return
+                print(f"   ⚠️ Listing stopped for r/{subreddit} (status {status})")
+                break
+            batch = data.get("data", [])
+            posts.extend(batch)
+            if len(batch) < 100:
+                break
+            before = int(float(batch[-1].get("created_utc", 0))) or None
+            if before is None:
+                break
             human_sleep(self.sleep_thread)
+        self._listing_cache[subreddit] = posts
+        if posts:
+            oldest = datetime.fromtimestamp(
+                int(float(posts[-1].get("created_utc", 0))),
+                tz=timezone.utc).strftime("%Y-%m-%d")
+            print(f"   📚 screening {len(posts)} archived threads "
+                  f"(back to {oldest})")
+        return posts
+
+    def search(self, subreddit, query, limit, pages):
+        """Yield archived submissions whose title+selftext match the query.
+
+        Full selftext is available (not a snippet), so the pre-download tier
+        filter sees the same text as the final analysis. Matches are kept in
+        memory so fetch_thread() does not need to re-request them.
+        """
+        pattern = self._query_pattern(query)
+        matched = 0
+        for post in self._list_posts(subreddit, pages):
+            if matched >= limit * pages:
+                return
+            text = clean_text(f"{post.get('title', '')}\n{post.get('selftext', '')}")
+            if pattern and not count_matches(pattern, text):
+                continue
+            if post.get("id"):
+                self._post_by_id[post["id"]] = post
+                matched += 1
+                yield post
 
     def fetch_thread(self, subreddit, thread_id, permalink):
-        """Fetch (or load from cache) the full thread JSON listing."""
+        """Fetch (or load from cache) comments and build a text wrapper."""
         cache_path = os.path.join(self.cache_dir, "threads", f"{thread_id}.json")
         if os.path.exists(cache_path):
             with open(cache_path, encoding="utf-8") as fh:
                 return json.load(fh)
-        human_sleep(self.sleep_thread)
-        url = f"https://www.reddit.com{permalink}.json"
-        data, status = self._get_json(url)
-        if not isinstance(data, list) or len(data) < 2:
-            return None
+        post = self._post_by_id.get(thread_id, {})
+
+        comments, before = [], None
+        while len(comments) < self.MAX_COMMENTS:
+            human_sleep(self.sleep_thread)
+            params = {"link_id": f"t3_{thread_id}", "limit": 100, "sort": "desc"}
+            if before is not None:
+                params["before"] = before
+            data, status = self._get_json(f"{ARCTIC_SHIFT}/api/comments/search",
+                                          params)
+            if data is None:
+                print(f"   ⚠️ Comments skipped for {thread_id} (status {status})")
+                break
+            batch = data.get("data", [])
+            for comment in batch:
+                body = comment.get("body", "")
+                if body and body not in ("[deleted]", "[removed]"):
+                    comments.append(body)
+            if len(batch) < 100:
+                break
+            before = int(float(batch[-1].get("created_utc", 0))) or None
+            if before is None:
+                break
+
+        created_utc = post.get("created_utc")
+        selftext = post.get("selftext", "")
         wrapper = {
             "subreddit": subreddit,
             "thread_id": thread_id,
             "thread_url": f"https://www.reddit.com{permalink}",
             "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "listing": data,
+            "source": "arctic-shift-archive",
+            "post": {
+                "title": post.get("title", ""),
+                "selftext": "" if selftext in ("[deleted]", "[removed]") else selftext,
+                "comments": comments,
+                "created": (datetime.fromtimestamp(int(float(created_utc)),
+                                                   tz=timezone.utc).strftime("%Y-%m-%d")
+                            if created_utc else ""),
+                "score": post.get("score", ""),
+                "num_comments": post.get("num_comments", ""),
+            },
         }
         with open(cache_path, "w", encoding="utf-8") as fh:
             json.dump(wrapper, fh)
@@ -567,8 +667,8 @@ def run(args):
             with open(os.path.join(thread_dir, fname), encoding="utf-8") as fh:
                 wrappers.append(json.load(fh))
     else:
-        client = RedditClient(args.cache, args.sleep_thread, args.sleep_sub,
-                              args.user_agent)
+        client = ArchiveClient(args.cache, args.sleep_thread, args.sleep_sub,
+                               args.user_agent)
         seen = set()
         for sub in subreddits:
             stats[sub] = {"results": 0, "tier1": 0, "tier2": 0, "fetched": 0}
@@ -829,9 +929,11 @@ def main():
     parser.add_argument("--reanalyze", action="store_true",
                         help="skip scraping; rebuild all outputs from cached threads")
     parser.add_argument("--limit", type=int, default=100,
-                        help="search results per query per subreddit (max 100)")
-    parser.add_argument("--pages", type=int, default=1,
-                        help="search pages per query (each page = up to --limit results)")
+                        help="cap on locally matched threads per query "
+                             "(effective cap is limit x pages)")
+    parser.add_argument("--pages", type=int, default=5,
+                        help="x100 newest archived posts screened per subreddit "
+                             "(no ~250-result cap: more pages = deeper history)")
     parser.add_argument("--sleep-thread", type=float, default=3.5)
     parser.add_argument("--sleep-sub", type=float, default=6.0)
     parser.add_argument("--sentiment", choices=["auto", "vader", "textblob", "none"],
