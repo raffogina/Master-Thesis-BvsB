@@ -33,8 +33,13 @@
     "build OR buy",
     "\"build vs buy\" OR \"buy vs build\"",
     "vendor OR \"in-house\" OR \"in house\"",
-    "\"built our own\" OR \"off the shelf\""
+    "\"built our own\" OR \"off the shelf\"",
+    "harvey OR legora OR cocounsel OR casetext OR wordsmith OR spellbook OR luminance OR kira",
+    "ironclad OR legalon OR agiloft OR contractpodai OR docusign OR pandadoc",
+    "clio OR smokeball OR mycase OR practicepanther OR filevine OR vlex OR lexisnexis OR westlaw OR \"thomson reuters\" OR \"bloomberg law\"",
+    "relativity OR everlaw OR logikcull OR brightflag OR simplelegal OR gavel OR \"genie ai\" OR josef OR lawhawk OR neota OR bryter OR imanage OR netdocuments OR highq"
   ],
+  "_queries_note": "Original 4 queries cover generic build-vs-buy decision vocabulary. The 4 added on 2026-07-10 search by legal-tech provider name instead (grouped by category to keep the query count manageable): this closes a recall gap found manually - a thread comparing Harvey/Claude/Legora/CoCounsel pricing did not surface under any of the original 4 queries (its only 'decision' vocabulary hit was an incidental 'vendor-heavy' substring), but was found instantly via a provider-name search. The gate/tier filter in 'gate' below is unchanged - these queries only widen discovery, they do not affect which threads are kept or how they are tiered.",
 
   "gate": {
     "_rule": "Corpus tiering (title+body only). TIER 1 'decision threads': (strong decision phrase, OR weak decision verb together with a software noun) AND legal-domain evidence (legal term, OR 'specialist' subreddit, OR legal-specific provider named). TIER 2 'discourse threads': no decision phrasing, but legal-domain evidence AND tech context (software noun or any provider) AND at least one study factor or provider mentioned - kept so factor talk without explicit decisions still counts. Everything else is excluded as off-topic. Report headline factor salience on tier 1; use tier 1+2 for the discourse-wide view and as robustness check.",
