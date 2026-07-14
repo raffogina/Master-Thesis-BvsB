@@ -1,0 +1,154 @@
+{
+  "_readme": "Frozen 'ideal output' for the pipeline self-test: what the tier rule and each analysis module must produce for tests/fixtures/fixture_thread.json under tests/fixtures/fixture_config.json. pipeline/checks.py compares against this EXACTLY before every run. Regenerate only deliberately, after an intentional method change, with tests/freeze_expected_fixture.py.",
+  "sentiment_backend": "vaderSentiment (Hutto & Gilbert 2014)",
+  "stemmer": "NLTK PorterStemmer (Porter 1980)",
+  "tier": 1,
+  "tier_reason": "decision context (strong-phrase)",
+  "stance": {
+    "stance": "buy-leaning",
+    "build_hits": 3,
+    "buy_hits": 6
+  },
+  "factors": {
+    "cost_roi": [
+      "Cost / ROI / TCO",
+      4
+    ],
+    "integration": [
+      "Integration with existing stack",
+      2
+    ],
+    "lockin_dependency": [
+      "Vendor lock-in / dependency risk",
+      2
+    ],
+    "control_customization_ip": [
+      "Control / customization / IP ownership",
+      2
+    ],
+    "usability_adoption": [
+      "Usability / adoption",
+      1
+    ],
+    "maintenance_support": [
+      "Maintenance burden / vendor support",
+      1
+    ],
+    "team_expertise": [
+      "Team composition & in-house expertise",
+      1
+    ],
+    "professional_risk_accuracy": [
+      "Professional risk / accuracy / hallucination",
+      4
+    ]
+  },
+  "providers": {
+    "Harvey": [
+      "legal_ai_assistant",
+      1
+    ],
+    "Spellbook": [
+      "contract_ai",
+      1
+    ],
+    "Ironclad": [
+      "clm",
+      1
+    ],
+    "ChatGPT/OpenAI": [
+      "foundation_vibecoding",
+      1
+    ]
+  },
+  "sentiment": {
+    "op_sentiment": -0.6542,
+    "op_label": "negative",
+    "comments_sentiment": 0.4761,
+    "comments_label": "positive",
+    "factor_tones": {
+      "cost_roi": 0.1591,
+      "integration": -0.4404,
+      "lockin_dependency": -0.1436,
+      "control_customization_ip": -0.0301,
+      "usability_adoption": 0.3182,
+      "maintenance_support": 0.1531,
+      "team_expertise": 0.0,
+      "professional_risk_accuracy": -0.25
+    },
+    "provider_tones": {
+      "Harvey": 0.3612,
+      "Spellbook": 0.0,
+      "Ironclad": 0.3612,
+      "ChatGPT/OpenAI": 0.4215
+    }
+  },
+  "term_counts": {
+    "build": 2,
+    "buy": 2,
+    "contract": 2,
+    "review": 2,
+    "softwar": 1,
+    "legal": 1,
+    "depart": 1,
+    "law": 1,
+    "firm": 1,
+    "decid": 1,
+    "whether": 1,
+    "tool": 2,
+    "shelf": 1,
+    "platform": 1,
+    "like": 1,
+    "harvey": 1,
+    "ironclad": 1,
+    "vendor": 3,
+    "price": 2,
+    "seem": 1,
+    "expens": 1,
+    "budget": 1,
+    "tight": 1,
+    "develop": 1,
+    "busi": 1,
+    "worri": 1,
+    "lock": 2,
+    "integr": 1,
+    "exist": 1,
+    "document": 1,
+    "manag": 1,
+    "system": 2,
+    "via": 1,
+    "api": 1,
+    "accuraci": 1,
+    "matter": 1,
+    "hallucin": 1,
+    "citat": 1,
+    "malpractic": 1,
+    "risk": 1,
+    "built": 1,
+    "hous": 1,
+    "chatgpt": 1,
+    "save": 1,
+    "great": 1,
+    "decis": 1,
+    "team": 1,
+    "love": 1,
+    "care": 1,
+    "mainten": 1,
+    "nightmar": 1,
+    "work": 1,
+    "way": 1,
+    "custom": 1,
+    "broke": 1,
+    "twice": 1,
+    "last": 1,
+    "nobodi": 1,
+    "fix": 1,
+    "bought": 1,
+    "spellbook": 1,
+    "fair": 1,
+    "onboard": 1,
+    "took": 1,
+    "support": 1,
+    "excel": 1
+  }
+}

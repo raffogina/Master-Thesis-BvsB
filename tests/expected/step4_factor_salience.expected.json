@@ -1,0 +1,23 @@
+{
+  "_readme": "Expected-output model for out/factor_salience.csv (step 4, AGGREGATE) — the core results table (RQ ii/iii). Percentages are of threads per tier and must be 0-100; tones are mean VADER compounds in [-1, 1] (empty when no scored sentence mentioned the factor).",
+  "kind": "csv",
+  "columns": ["factor", "label", "n_threads_decision", "pct_decision_threads",
+              "tone_decision", "n_threads_discourse", "pct_discourse_threads",
+              "tone_discourse", "n_threads_all", "pct_all_threads",
+              "total_mentions", "tone_all"],
+  "min_rows": 1,
+  "unique_columns": ["factor"],
+  "non_empty_columns": ["factor", "label"],
+  "numeric_ranges": {
+    "n_threads_decision": {"min": 0},
+    "pct_decision_threads": {"min": 0, "max": 100},
+    "tone_decision": {"min": -1, "max": 1, "allow_empty": true},
+    "n_threads_discourse": {"min": 0},
+    "pct_discourse_threads": {"min": 0, "max": 100},
+    "tone_discourse": {"min": -1, "max": 1, "allow_empty": true},
+    "n_threads_all": {"min": 1},
+    "pct_all_threads": {"min": 0, "max": 100},
+    "total_mentions": {"min": 1},
+    "tone_all": {"min": -1, "max": 1, "allow_empty": true}
+  }
+}

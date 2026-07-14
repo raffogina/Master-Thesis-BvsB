@@ -1,0 +1,20 @@
+{
+  "_readme": "Frozen synthetic thread for the pipeline self-test. It is NEVER collected or counted in any real output; pipeline/checks.py pushes it through the step-2 tier rule and the step-3 measurer (with the frozen fixture_config.json) and compares the result with tests/expected/fixture_analysis.expected.json. Do not edit: any change invalidates the frozen expected model.",
+  "subreddit": "legaltech",
+  "thread_id": "fixture01",
+  "thread_url": "https://www.reddit.com/r/legaltech/comments/fixture01/build_vs_buy_fixture/",
+  "fetched_at": "2026-01-01T00:00:00+00:00",
+  "source": "pipeline-selftest-fixture",
+  "post": {
+    "title": "Build vs buy: contract review software for our legal department?",
+    "selftext": "Our law firm is deciding whether to build our own contract review tool or buy an off the shelf platform like Harvey or Ironclad. The vendor pricing seems expensive and our budget is tight, but our developers are busy. We worry about vendor lock in, and about integration with our existing document management system via API. Accuracy matters too: hallucinated citations would be a malpractice risk.",
+    "comments": [
+      "We built our own tool in house with ChatGPT and it saved us so much time. Great decision, the team loves it.",
+      "Careful: maintenance is a nightmare and vendor lock in works both ways. Our custom system broke twice last month and nobody can fix it.",
+      "We just bought Spellbook. The pricing was fair and onboarding took a week. Support has been excellent."
+    ],
+    "created": "2025-06-15",
+    "score": 42,
+    "num_comments": 3
+  }
+}

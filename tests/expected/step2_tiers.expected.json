@@ -1,0 +1,12 @@
+{
+  "_readme": "Expected-output model for out/steps/step2_thread_tiers.csv (step 2, TIER). corpus_tier meaning: 1 decision thread, 2 discourse thread, 0 excluded off-topic, -1 unreadable/empty cached wrapper.",
+  "kind": "csv",
+  "columns": ["thread_id", "subreddit", "thread_url", "title", "created_utc",
+              "post_score", "num_comments_reported", "n_comments_scraped",
+              "corpus_tier", "tier_reason"],
+  "min_rows": 1,
+  "unique_columns": ["thread_id"],
+  "non_empty_columns": ["thread_id", "tier_reason"],
+  "allowed_values": {"corpus_tier": ["-1", "0", "1", "2"]},
+  "numeric_ranges": {"n_comments_scraped": {"min": 0}}
+}

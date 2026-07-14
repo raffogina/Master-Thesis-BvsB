@@ -1,5 +1,5 @@
 {
-  "_readme": "All dictionaries used by the pipeline (run_pipeline.py / pipeline/*.py). This file IS methodology: reproduce it in the thesis Annex and cite a source for every list you keep. Fields starting with '_' are documentation only. Term syntax: lowercase; a trailing '*' matches any word ending (e.g. 'customiz*' matches customize/customization); spaces in a phrase also match hyphens (e.g. 'in house' matches 'in-house').",
+  "_readme": "All dictionaries used by scraper_v2.py. This file IS methodology: reproduce it in the thesis Annex and cite a source for every list you keep. Fields starting with '_' are documentation only. Term syntax: lowercase; a trailing '*' matches any word ending (e.g. 'customiz*' matches customize/customization); spaces in a phrase also match hyphens (e.g. 'in house' matches 'in-house').",
 
   "subreddits": {
     "_criteria": "Inclusion criteria (document in Section 2): (1) thematic fit: community self-description addresses legal practice or legal technology; (2) professional audience (practitioners, ops, builders), not consumer legal advice; (3) active in the last 12 months; (4) English language; (5) non-zero yield of gated threads in the pilot run. Cite Proferes et al. (2021) for purposive subreddit sampling practice.",

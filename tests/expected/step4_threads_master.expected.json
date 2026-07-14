@@ -1,0 +1,27 @@
+{
+  "_readme": "Expected-output model for out/threads_master.csv (step 4, AGGREGATE). Column names and order are frozen for thesis continuity — the manual_* columns are filled by hand during the validation protocol (README). Only kept threads appear here, so corpus_tier is 1 or 2.",
+  "kind": "csv",
+  "columns": ["subreddit", "thread_id", "thread_url", "title", "created_utc",
+              "post_score", "num_comments_reported", "n_comments_scraped",
+              "corpus_tier", "tier_reason", "stance_heuristic",
+              "build_signal_hits", "buy_signal_hits", "providers_mentioned",
+              "factors_mentioned", "op_sentiment", "op_sentiment_label",
+              "comments_sentiment_mean", "comments_sentiment_label",
+              "manual_decision", "manual_outcome", "manual_notes"],
+  "min_rows": 1,
+  "unique_columns": ["thread_id"],
+  "non_empty_columns": ["thread_id", "subreddit", "thread_url", "tier_reason"],
+  "allowed_values": {
+    "corpus_tier": ["1", "2"],
+    "stance_heuristic": ["build-leaning", "buy-leaning", "mixed", "unclear", ""],
+    "op_sentiment_label": ["positive", "negative", "neutral", ""],
+    "comments_sentiment_label": ["positive", "negative", "neutral", ""]
+  },
+  "numeric_ranges": {
+    "op_sentiment": {"min": -1, "max": 1, "allow_empty": true},
+    "comments_sentiment_mean": {"min": -1, "max": 1, "allow_empty": true},
+    "build_signal_hits": {"min": 0, "allow_empty": true},
+    "buy_signal_hits": {"min": 0, "allow_empty": true},
+    "n_comments_scraped": {"min": 0}
+  }
+}

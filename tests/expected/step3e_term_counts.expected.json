@@ -1,0 +1,7 @@
+{
+  "_readme": "Expected-output model for out/steps/step3e_term_counts.json (terms module — stemmed vocabulary for the step-B discovery check). Internal consistency (each stem's surface-form counts summing to the stem count) is checked in code (pipeline/checks.py check_module).",
+  "kind": "json",
+  "records_key": "threads",
+  "min_records": 1,
+  "required_fields": ["thread_id", "subreddit", "thread_url", "counts", "surfaces"]
+}
