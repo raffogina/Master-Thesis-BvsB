@@ -1,0 +1,7 @@
+{
+  "_readme": "Expected-output model for out/steps/step3c_providers.json (providers module). Entry shape ({provider_name: [category, mentions >= 1]}) and that every name exists in the config dictionary are checked in code (pipeline/checks.py check_module).",
+  "kind": "json",
+  "records_key": "threads",
+  "min_records": 1,
+  "required_fields": ["thread_id", "providers"]
+}

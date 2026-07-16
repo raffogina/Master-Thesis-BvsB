@@ -1,0 +1,10 @@
+{
+  "_readme": "Expected-output model for out/keyword_frequency.csv (step 4, AGGREGATE) — exploratory annex table (v1 continuity). thread_id repeats across rows by design (one row per thread x stem), so no uniqueness rule. That counts respect config min_count is checked in code.",
+  "kind": "csv",
+  "columns": ["subreddit", "thread_url", "term", "stem", "count"],
+  "min_rows": 1,
+  "non_empty_columns": ["subreddit", "thread_url", "term", "stem"],
+  "numeric_ranges": {
+    "count": {"min": 1}
+  }
+}

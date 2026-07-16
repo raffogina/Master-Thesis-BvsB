@@ -1,0 +1,8 @@
+{
+  "_readme": "Expected-output model for out/steps/step1_collection_manifest.csv (step 1, COLLECT). pipeline/checks.py compares the real file against these rules right after step 1 runs; a mismatch stops the pipeline.",
+  "kind": "csv",
+  "columns": ["thread_id", "subreddit", "thread_url", "cache_file"],
+  "min_rows": 1,
+  "unique_columns": ["thread_id"],
+  "non_empty_columns": ["thread_id", "subreddit", "cache_file"]
+}

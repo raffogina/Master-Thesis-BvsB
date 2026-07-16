@@ -1,0 +1,14 @@
+{
+  "_readme": "Expected-output model for out/steps/step3a_stance.json (stance module). The stance is a heuristic orientation, not a verified decision — validate a sample by hand (README validation protocol).",
+  "kind": "json",
+  "records_key": "threads",
+  "min_records": 1,
+  "required_fields": ["thread_id", "stance", "build_hits", "buy_hits"],
+  "allowed_values": {
+    "stance": ["build-leaning", "buy-leaning", "mixed", "unclear"]
+  },
+  "numeric_ranges": {
+    "build_hits": {"min": 0},
+    "buy_hits": {"min": 0}
+  }
+}

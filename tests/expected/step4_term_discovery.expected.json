@@ -1,0 +1,14 @@
+{
+  "_readme": "Expected-output model for out/term_discovery.csv (step 4, AGGREGATE) — the step-B factor-gap table. An empty covered_by is meaningful (candidate missing factor), so it is NOT required to be non-empty. That totals respect config min_count is checked in code.",
+  "kind": "csv",
+  "columns": ["stem", "display_form", "surface_forms", "total_count",
+              "n_threads", "pct_of_threads", "covered_by"],
+  "min_rows": 1,
+  "unique_columns": ["stem"],
+  "non_empty_columns": ["stem", "display_form", "surface_forms"],
+  "numeric_ranges": {
+    "total_count": {"min": 1},
+    "n_threads": {"min": 1},
+    "pct_of_threads": {"min": 0, "max": 100}
+  }
+}
