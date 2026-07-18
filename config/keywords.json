@@ -1,48 +1,16 @@
 {
-  "_readme": "All dictionaries used by the pipeline (run_pipeline.py / pipeline/*.py). This file IS methodology: reproduce it in the thesis Annex and cite a source for every list you keep. Fields starting with '_' are documentation only. Term syntax: lowercase; a trailing '*' matches any word ending (e.g. 'customiz*' matches customize/customization); spaces in a phrase also match hyphens (e.g. 'in house' matches 'in-house').",
-
-  "subreddits": {
-    "_criteria": "Inclusion criteria (document in Section 2): (1) thematic fit: community self-description addresses legal practice or legal technology; (2) professional audience (practitioners, ops, builders), not consumer legal advice; (3) active in the last 12 months; (4) English language; (5) non-zero yield of gated threads in the pilot run. Cite Proferes et al. (2021) for purposive subreddit sampling practice.",
-    "specialist": [
-      "legaltech",
-      "legaltechAI",
-      "LegalTechMakers",
-      "LegalAITech",
-      "LegaltechEurope",
-      "LegalAIHelp",
-      "LegalAIPrompts",
-      "AIforLawyers_",
-      "techlaw"
-    ],
-    "practitioner": [
-      "Lawyertalk",
-      "lawfirm",
-      "paralegal",
-      "TheAttorneyLounge"
-    ],
-    "excluded": {
-      "legal": "consumer legal-advice audience; v1 yield was off-topic (workplace disputes)",
-      "law": "news/politics audience; v1 yield was off-topic (eminent domain, Disney/OpenAI news)",
-      "artificial": "general AI audience, no legal-domain discourse; v1 yield was consumer purchase advice",
-      "computerforensics": "adjacent field, no build-vs-buy procurement discourse in pilot",
-      "remotelegaljobs": "job listings, no procurement discourse"
-    }
-  },
+  "_readme": "All dictionaries used by the pipeline (run_pipeline.py / pipeline/*.py). This file IS methodology: reproduce it in the thesis Annex and cite a source for every list you keep. Fields starting with '_' are documentation only. Term syntax: lowercase; a trailing '*' matches any word ending (e.g. 'customiz*' matches customize/customization); spaces in a phrase also match hyphens (e.g. 'in house' matches 'in-house') and tolerate one intercalated adverb from just/recently/finally (e.g. 'we bought' also matches 'we just bought').",
 
   "queries": [
     "build OR buy",
     "\"build vs buy\" OR \"buy vs build\"",
     "vendor OR \"in-house\" OR \"in house\"",
-    "\"built our own\" OR \"off the shelf\"",
-    "harvey OR legora OR cocounsel OR casetext OR wordsmith OR spellbook OR luminance OR kira",
-    "ironclad OR legalon OR agiloft OR contractpodai OR docusign OR pandadoc",
-    "clio OR smokeball OR mycase OR practicepanther OR filevine OR vlex OR lexisnexis OR westlaw OR \"thomson reuters\" OR \"bloomberg law\"",
-    "relativity OR everlaw OR logikcull OR brightflag OR simplelegal OR gavel OR \"genie ai\" OR josef OR lawhawk OR neota OR bryter OR imanage OR netdocuments OR highq"
+    "\"built our own\" OR \"off the shelf\""
   ],
-  "_queries_note": "Original 4 queries cover generic build-vs-buy decision vocabulary. The 4 added on 2026-07-10 search by legal-tech provider name instead (grouped by category to keep the query count manageable): this closes a recall gap found manually - a thread comparing Harvey/Claude/Legora/CoCounsel pricing did not surface under any of the original 4 queries (its only 'decision' vocabulary hit was an incidental 'vendor-heavy' substring), but was found instantly via a provider-name search. The gate/tier filter in 'gate' below is unchanged - these queries only widen discovery, they do not affect which threads are kept or how they are tiered.",
+  "_queries_note": "The 4 queries cover generic build-vs-buy decision vocabulary. Discovery additionally screens every post against ONE derived query built at runtime from the patterns of every legal_specific provider in 'providers' below (single source of truth: edit the provider list and the screening filter follows; generic tools like chatgpt/aws are measured once a thread is collected but are too unspecific to drive discovery). Provider-name screening was added on 2026-07-10 to close a recall gap found manually - a thread comparing Harvey/Claude/Legora/CoCounsel pricing did not surface under any of the 4 generic queries. The gate/tier filter in 'gate' below is unchanged - provider screening only widens discovery, it does not affect which threads are kept or how they are tiered.",
 
   "gate": {
-    "_rule": "Corpus tiering (title+body only). TIER 1 'decision threads': (strong decision phrase, OR weak decision verb together with a software noun) AND legal-domain evidence (legal term, OR 'specialist' subreddit, OR legal-specific provider named). TIER 2 'discourse threads': no decision phrasing, but legal-domain evidence AND tech context (software noun or any provider) AND at least one study factor or provider mentioned - kept so factor talk without explicit decisions still counts. Everything else is excluded as off-topic. Report headline factor salience on tier 1; use tier 1+2 for the discourse-wide view and as robustness check.",
+    "_rule": "Corpus tiering (title+body only). TIER 1 'decision threads': (strong decision phrase, OR weak decision verb together with a software noun) AND legal-domain evidence (legal term, OR legal-specific provider named). TIER 2 'discourse threads': no decision phrasing, but legal-domain evidence AND tech context (software noun or any provider) AND at least one study factor or provider mentioned - kept so factor talk without explicit decisions still counts. Everything else is excluded as off-topic. Report headline factor salience on tier 1; use tier 1+2 for the discourse-wide view and as robustness check.",
     "strong_phrases": [
       "build vs buy", "build or buy", "buy vs build", "buy or build", "build versus buy",
       "in house", "inhouse", "built our own", "build our own", "building our own",
@@ -93,7 +61,7 @@
     "cost_roi": {
       "label": "Cost / ROI / TCO",
       "suggested_source": "Williamson (1985) transaction-cost economics; Ellram (1995) total cost of ownership; Daneshgar et al. (2013)",
-      "terms": ["cost", "costs", "costly", "pricing", "price", "prices", "budget", "budgets", "roi", "expensive", "cheap", "cheaper", "fee", "fees", "tco", "total cost of ownership", "payback", "per seat", "per user", "business case", "break even", "breakeven", "value", "value for money", "cost effective", "cost efficient", "expense", "expenses", "depreciation", "amortization", "amortisation", "capex", "opex", "capital expenditure", "operating expense"]
+      "terms": ["cost", "costs", "costly", "pricing", "price", "prices", "budget", "budgets", "roi", "expensive", "cheap", "cheaper", "fee", "fees", "tco", "total cost of ownership", "payback", "per seat", "per user", "business case", "break even", "breakeven", "value", "value for money", "cost effective", "cost efficient", "expense", "expenses", "depreciation", "amortization", "amortisation", "capex", "opex", "capital expenditure", "operating expense", "subscription", "subscriptions", "subscribe", "recurring cost", "recurring costs", "recurring fee", "recurring fees", "monthly fee", "monthly fees", "annual fee", "annual fees", "yearly fee", "yearly fees", "billing", "invoice", "invoices", "contract value"]
     },
     "integration": {
       "label": "Integration with existing stack",
@@ -175,7 +143,6 @@
   "providers": {
     "_rule": "Measured variables (the market barometer), not gate filters. Replace/extend this list with a citable market taxonomy and state the cut-off date. legal_specific=true entries also count as legal-domain evidence in the tier rule.",
     "_source": "TODO: cite the taxonomy used for this list (per decision D3: e.g. Legal Tech Monitor 2025, Stanford CodeX Techindex, or Legaltech Hub) and the retrieval date.",
-    "_known_ambiguities": "harvey (person name), gavel (object), relativity (physics), kira (person name), vincent (person name -> matched only as 'vincent ai'), copilot (generic aviation term). Spot-check these in manual validation.",
     "entries": [
       {"name": "Harvey",            "patterns": ["harvey"],                                        "category": "legal_ai_assistant", "legal_specific": true},
       {"name": "Legora",            "patterns": ["legora"],                                        "category": "legal_ai_assistant", "legal_specific": true},
@@ -197,7 +164,7 @@
       {"name": "PracticePanther",   "patterns": ["practicepanther", "practice panther"],           "category": "practice_mgmt",      "legal_specific": true},
       {"name": "Filevine",          "patterns": ["filevine"],                                      "category": "practice_mgmt",      "legal_specific": true},
       {"name": "vLex/Vincent",      "patterns": ["vlex", "vincent ai"],                            "category": "research",           "legal_specific": true},
-      {"name": "LexisNexis",        "patterns": ["lexisnexis", "lexis nexis", "lexis+", "lexis plus"], "category": "research",       "legal_specific": true},
+      {"name": "LexisNexis",        "patterns": ["lexisnexis", "lexis nexis", "lexis", "lexis plus"], "category": "research",       "legal_specific": true},
       {"name": "Westlaw",           "patterns": ["westlaw"],                                       "category": "research",           "legal_specific": true},
       {"name": "Thomson Reuters",   "patterns": ["thomson reuters"],                               "category": "research",           "legal_specific": true},
       {"name": "Bloomberg Law",     "patterns": ["bloomberg law", "bloomberg"],                    "category": "research",           "legal_specific": true},
@@ -234,13 +201,18 @@
   },
 
   "sentiment": {
-    "_rule": "VADER compound thresholds per Hutto & Gilbert (2014): >= 0.05 positive, <= -0.05 negative, else neutral. Applied separately to the original post (author-satisfaction proxy) and to comments (community reaction).",
-    "positive_threshold": 0.05,
-    "negative_threshold": -0.05
+    "_rule": "The ONLY sentiment measurement in the pipeline: mean VADER compound (Hutto & Gilbert 2014) of exactly those sentences in TIER-1 threads that contain a past-decision marker AND a first-person marker. This captures the tone with which posters describe decisions they actually took ('we bought Clio and regret it') and excludes hypotheticals and advice to third parties ('you should buy...'). Both lists below are the complete, auditable measurement instrument (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013).",
+    "past_decision_markers": [
+      "we built", "i built", "we bought", "i bought", "we went with", "i went with",
+      "we chose", "i chose", "we implemented", "i implemented",
+      "we signed with", "i signed with", "ended up", "switched to",
+      "migrated to", "rolled out"
+    ],
+    "first_person_markers": ["we", "our", "i"]
   },
 
-  "legacy_keywords": {
-    "_rule": "Cleaned replacement of the v1 inductive word-frequency output: lemmatised (plural/singular folded), standard English stop list plus the extras below, URL fragments stripped.",
+  "terms": {
+    "_rule": "Settings for the stemmed term counts (step3e) and the term_discovery.csv factor-gap table: standard English stop list plus the extras below, URL fragments stripped, word variants folded by Porter stemming.",
     "min_count": 5,
     "min_token_len": 3,
     "extra_stopwords": [
@@ -256,7 +228,15 @@
       "get", "getting", "also", "even", "much", "many", "still", "way", "well",
       "good", "make", "making", "made", "know", "time", "see", "want", "need",
       "use", "using", "used", "user", "users", "people", "someone", "anyone",
-      "something", "anything", "everything", "nothing", "here", "there", "now"
+      "something", "anything", "everything", "nothing", "here", "there", "now",
+      "like", "think", "thinking", "thought", "going", "look", "looking",
+      "come", "say", "said", "says", "sure", "right", "honestly", "basically",
+      "literally", "definitely", "especially", "exactly", "kind", "sort",
+      "guys", "hey", "thanks", "thank", "please", "wondering", "curious",
+      "agree", "disagree", "else", "ever", "yet", "instead", "rather", "quite",
+      "already", "always", "never", "often", "sometimes", "able", "less",
+      "least", "every", "one", "two", "first", "second", "around", "along",
+      "though", "although", "however", "without", "within"
     ]
   }
 }

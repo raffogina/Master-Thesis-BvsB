@@ -33,10 +33,10 @@ def main():
     config = common.read_json(os.path.join(ROOT, "tests", "fixtures", "fixture_config.json"))
 
     title, selftext, _comments, _meta = common.load_wrapper_texts(fixture)
-    tier, reason = TierAssigner(config).tier(fixture["subreddit"], title, selftext)
+    tier, reason = TierAssigner(config).tier(title, selftext)
 
     op_text, comments = common.extract_op_and_comments(fixture)
-    sentiment_measurer = SentimentMeasurer(config, "auto")
+    sentiment_measurer = SentimentMeasurer(config)
     term_counter = TermCounter(config)
     counts, _surfaces = term_counter.count(" \n ".join([op_text] + comments))
 
@@ -62,6 +62,7 @@ def main():
     print(f"💾 froze new expected model: {out_path}")
     print(f"   tier {tier} ({reason}); stance {expected['stance']['stance']}; "
           f"{len(expected['factors'])} factors; {len(expected['providers'])} providers; "
+          f"{expected['sentiment']['n_decision_sentences']} decision sentence(s); "
           f"{len(expected['term_counts'])} stems")
     print("   ⚠️ Only do this after an INTENTIONAL method change — document it in the thesis.")
 
