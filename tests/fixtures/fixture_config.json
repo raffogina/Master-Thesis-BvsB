@@ -201,14 +201,16 @@
   },
 
   "sentiment": {
-    "_rule": "The ONLY sentiment measurement in the pipeline: mean VADER compound (Hutto & Gilbert 2014) of exactly those sentences in TIER-1 threads that contain a past-decision marker AND a first-person marker (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013).",
-    "past_decision_markers": [
-      "we built", "i built", "we bought", "i bought", "we went with", "i went with",
-      "we chose", "i chose", "we implemented", "i implemented",
-      "we signed with", "i signed with", "ended up", "switched to",
-      "migrated to", "rolled out"
-    ],
-    "first_person_markers": ["we", "our", "i"]
+    "_rule": "The ONLY sentiment measurement in the pipeline: mean VADER compound (Hutto & Gilbert 2014) of exactly those sentences in TIER-1 threads that contain a direct subject-verb bigram - a decision_subjects pronoun IMMEDIATELY followed by a decision_verbs word (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013).",
+    "decision_subjects": ["i", "we"],
+    "decision_verbs": [
+      "built", "bought", "purchased", "developed", "coded", "deployed",
+      "migrated", "switched", "chose", "decided", "moved to", "went with",
+      "implemented", "signed with", "adopted", "picked", "selected",
+      "rolled out", "ended up", "opted for", "settled on", "upgraded to",
+      "downgraded to", "ditched", "dropped", "canceled", "cancelled",
+      "renewed", "stuck with"
+    ]
   },
 
   "terms": {

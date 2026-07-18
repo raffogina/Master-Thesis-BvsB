@@ -6,11 +6,20 @@ Output  out/steps/step3d_sentiment.json
 The entire sentiment method lives in THIS file only, and it measures exactly
 ONE thing: for every TIER-1 (decision) thread, the mean VADER compound score
 (Hutto & Gilbert 2014) of the sentences that report a decision actually taken
-in the past. A sentence qualifies only when it contains BOTH
-  - a past-decision marker  (config sentiment.past_decision_markers), and
-  - a first-person marker   (config sentiment.first_person_markers),
-so first-hand experiences ("we bought Clio and regret it") are measured while
-hypotheticals and advice to third parties ("you should buy X") are not.
+in the past. A sentence qualifies only when it contains a direct
+subject-verb bigram: a first-person subject (config sentiment.decision_
+subjects: "i"/"we") followed by a decision verb (config
+sentiment.decision_verbs) with at most one tolerated adverb in between
+(common.PHRASE_GAP_ADVERBS: just/recently/finally - the same single-adverb
+tolerance every other dictionary term in this pipeline gets), e.g. "we
+built", "I decided", "we just bought", "we finally migrated". Matching is
+done sentence by sentence (split on . ! ?), never across the whole
+post/thread, so "I work at a firm... they migrated to X last year" does not
+count as "I migrated" just because both appear in the same document - and
+within one sentence, "I heard they migrated to X" still does not match,
+because no "i migrated"/"we migrated" bigram (with at most one adverb
+between subject and verb) is present (the word right before "migrated" is
+"they", not "i"/"we").
 Both dictionaries live in config/keywords.json like every other instrument
 (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013).
 No other sentiment is measured anywhere in the pipeline.
@@ -21,25 +30,27 @@ Standalone use:
 
 import argparse
 import os
+import re
 
 from . import common
-from .common import build_sentiment, compile_terms, count_matches, sentences_of
+from .common import PHRASE_GAP_ADVERBS, build_sentiment, sentences_of
 
 
 class SentimentMeasurer:
     def __init__(self, config):
         self.score, self.backend = build_sentiment()
         senti = config["sentiment"]
-        self.re_decision = compile_terms(senti["past_decision_markers"])
-        self.re_first_person = compile_terms(senti["first_person_markers"])
+        subjects = "|".join(re.escape(s) for s in senti["decision_subjects"])
+        verbs = "|".join(re.escape(v) for v in senti["decision_verbs"])
+        adverbs = "|".join(re.escape(a) for a in PHRASE_GAP_ADVERBS)
+        self.re_subject_verb = re.compile(
+            rf"\b(?:{subjects})(?:\s+(?:{adverbs}))?\s+(?:{verbs})\b", re.IGNORECASE)
 
     def decision_sentences(self, op_text, comment_texts):
-        """Sentences (OP + comments) with a past-decision AND a first-person
-        marker."""
+        """Sentences (OP + comments) containing a direct subject-verb bigram
+        ('we built', 'i decided', ...) - see module docstring."""
         full_text = " \n ".join([op_text] + comment_texts)
-        return [s for s in sentences_of(full_text)
-                if count_matches(self.re_decision, s)
-                and count_matches(self.re_first_person, s)]
+        return [s for s in sentences_of(full_text) if self.re_subject_verb.search(s)]
 
     def measure(self, op_text, comment_texts):
         tones = [self.score(s)

@@ -11,6 +11,12 @@ pre-download filter in step 1 and this step use the identical criterion):
   tier  0  excluded (off-topic noise)
   tier -1  cached wrapper unreadable/empty (deleted thread) — excluded
 
+A title/body-only tier-1 call with zero scraped comments has no actual
+community discussion behind it, so it is demoted to tier 2 rather than kept
+as a decision thread (tier_reason gets a " (demoted: no comments scraped)"
+suffix so the demotion stays traceable in the CSV). The thread is never
+dropped from the corpus by this rule — only its tier changes.
+
 Tier 0 / -1 threads are kept in this file with their exclusion reason (audit
 trail for the Methodology section) but are ignored by steps 3 and 4.
 
@@ -107,6 +113,9 @@ def run(config_path, out_dir):
             continue
         title, selftext, comments, meta = extracted
         tier, reason = assigner.tier(title, selftext)
+        if tier == 1 and len(comments) == 0:
+            tier = 2
+            reason = f"{reason} (demoted: no comments scraped)"
         counts[tier] += 1
         rows.append({
             "thread_id": entry["thread_id"], "subreddit": entry["subreddit"],
