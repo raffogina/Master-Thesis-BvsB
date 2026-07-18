@@ -9,6 +9,11 @@ build-leaning / buy-leaning / mixed / unclear using the config thresholds
 (min_hits, dominance_ratio). This is a heuristic ORIENTATION, not a verified
 decision — validate a sample by hand (README validation protocol).
 
+Threads with fewer than stance.min_comments scraped comments are classified
+'too_short' instead of 'unclear': they simply don't have enough text for the
+hit counts to reach min_hits, which is a different phenomenon from a thread
+that discusses build and buy in genuinely ambiguous proportions.
+
 Independent of every other step-3 module: no sentiment, no factor/provider
 dictionaries. Deleting or breaking any other analysis module does not affect
 this output, and vice versa.
@@ -31,12 +36,15 @@ class StanceMeasurer:
         self.re_buy = compile_terms(stance["buy_signals"])
         self.stance_min = stance.get("min_hits", 3)
         self.stance_ratio = stance.get("dominance_ratio", 2.0)
+        self.min_comments = stance.get("min_comments", 0)
 
     def measure(self, op_text, comment_texts):
         full_text = " \n ".join([op_text] + comment_texts)
         build_hits = count_matches(self.re_build, full_text)
         buy_hits = count_matches(self.re_buy, full_text)
-        if build_hits >= self.stance_min and build_hits >= self.stance_ratio * max(buy_hits, 1):
+        if len(comment_texts) < self.min_comments:
+            stance = "too_short"
+        elif build_hits >= self.stance_min and build_hits >= self.stance_ratio * max(buy_hits, 1):
             stance = "build-leaning"
         elif buy_hits >= self.stance_min and buy_hits >= self.stance_ratio * max(build_hits, 1):
             stance = "buy-leaning"

@@ -61,8 +61,16 @@ would shall may might must ought
 # ---------------------------------------------------------------------------
 
 # Adverbs tolerated between the words of a phrase term ('we bought' also
-# matches 'we just bought'); single-word terms are unaffected.
-PHRASE_GAP_ADVERBS = ("just", "recently", "finally")
+# matches 'we just bought'); single-word terms are unaffected. Deliberately
+# excludes negators (never, not, barely, hardly, rarely, ...) - tolerating
+# those would let a sentence that says a decision was NOT taken count as one
+# that was.
+PHRASE_GAP_ADVERBS = (
+    "just", "recently", "finally", "eventually", "ultimately", "actually",
+    "really", "definitely", "immediately", "quickly", "promptly", "already",
+    "then", "simply", "basically", "essentially", "personally", "honestly",
+    "literally", "initially", "originally", "formally", "officially",
+)
 _PHRASE_GAP = r"[\s\-]+(?:(?:" + "|".join(PHRASE_GAP_ADVERBS) + r")[\s\-]+)?"
 
 

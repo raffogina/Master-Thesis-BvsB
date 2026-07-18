@@ -4,7 +4,7 @@
   "queries": [
     "build OR buy",
     "\"build vs buy\" OR \"buy vs build\"",
-    "vendor OR \"in-house\" OR \"in house\"",
+    "\"built in-house\" OR \"build in-house\" OR \"developed in-house\" OR \"in-house tool\" OR \"in-house software\" OR \"in-house solution\" OR \"in-house system\" OR \"in-house platform\" OR \"custom-built\" OR \"custom-developed\" OR \"self-hosted\" OR \"rolled our own\" OR \"roll our own\" OR \"developed internally\"",
     "\"built our own\" OR \"off the shelf\""
   ],
   "_queries_note": "The 4 queries cover generic build-vs-buy decision vocabulary. Discovery additionally screens every post against ONE derived query built at runtime from the patterns of every legal_specific provider in 'providers' below (single source of truth: edit the provider list and the screening filter follows; generic tools like chatgpt/aws are measured once a thread is collected but are too unspecific to drive discovery). Provider-name screening was added on 2026-07-10 to close a recall gap found manually - a thread comparing Harvey/Claude/Legora/CoCounsel pricing did not surface under any of the 4 generic queries. The gate/tier filter in 'gate' below is unchanged - provider screening only widens discovery, it does not affect which threads are kept or how they are tiered.",
@@ -38,7 +38,7 @@
   },
 
   "stance": {
-    "_rule": "Heuristic orientation of the discussion, NOT a verified decision. Verify a sample by hand in the manual_decision column (see README validation protocol).",
+    "_rule": "Heuristic orientation of the discussion, NOT a verified decision. Verify a sample by hand in the manual_decision column (see README validation protocol). Threads with fewer than min_comments scraped comments are classified 'too_short' instead of 'unclear': there is not enough text for the hit counts to reach min_hits, so 'unclear' would conflate genuine ambiguity with plain lack of data.",
     "build_signals": [
       "build our own", "built our own", "building our own", "build my own", "built my own",
       "in house", "inhouse", "internally", "internal tool", "self host", "self hosted",
@@ -53,7 +53,8 @@
       "implementation partner", "onboarding fee"
     ],
     "min_hits": 3,
-    "dominance_ratio": 2.0
+    "dominance_ratio": 2.0,
+    "min_comments": 3
   },
 
   "factors": {
@@ -201,14 +202,16 @@
   },
 
   "sentiment": {
-    "_rule": "The ONLY sentiment measurement in the pipeline: mean VADER compound (Hutto & Gilbert 2014) of exactly those sentences in TIER-1 threads that contain a past-decision marker AND a first-person marker. This captures the tone with which posters describe decisions they actually took ('we bought Clio and regret it') and excludes hypotheticals and advice to third parties ('you should buy...'). Both lists below are the complete, auditable measurement instrument (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013).",
-    "past_decision_markers": [
-      "we built", "i built", "we bought", "i bought", "we went with", "i went with",
-      "we chose", "i chose", "we implemented", "i implemented",
-      "we signed with", "i signed with", "ended up", "switched to",
-      "migrated to", "rolled out"
-    ],
-    "first_person_markers": ["we", "our", "i"]
+    "_rule": "The ONLY sentiment measurement in the pipeline: mean VADER compound (Hutto & Gilbert 2014) of exactly those sentences in TIER-1 threads that contain a direct subject-verb bigram - a decision_subjects pronoun IMMEDIATELY followed by a decision_verbs word, no tokens in between (pipeline/step3d_sentiment.py). Matching is sentence-scoped (split on . ! ?), never across the whole post/thread. This enforces real subject-verb adjacency: 'we bought Clio and regret it' counts ('we bought' bigram present) but 'I heard they migrated to X' does not (the word right before 'migrated' is 'they', not 'i'/'we' - no 'i migrated'/'we migrated' bigram exists). Captures the tone with which posters describe decisions they actually took; excludes hypotheticals, advice to third parties, and decisions attributed to someone else. Both lists below are the complete, auditable measurement instrument (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013).",
+    "decision_subjects": ["i", "we"],
+    "decision_verbs": [
+      "built", "bought", "purchased", "developed", "coded", "deployed",
+      "migrated", "switched", "chose", "decided", "moved to", "went with",
+      "implemented", "signed with", "adopted", "picked", "selected",
+      "rolled out", "ended up", "opted for", "settled on", "upgraded to",
+      "downgraded to", "ditched", "dropped", "canceled", "cancelled",
+      "renewed", "stuck with"
+    ]
   },
 
   "terms": {

@@ -330,6 +330,20 @@ def run(config_path, out_dir, use_modules=None):
                          f"{s['results']} query matches{rate} | "
                          f"tier1 {s['tier1']} | tier2 {s['tier2']} | "
                          f"built {s['fetched']}\n")
+        if payload["stance"] is not None:
+            stance_counts = Counter(r["stance_heuristic"] for r in master_rows
+                                     if r["stance_heuristic"])
+            fh.write("\nStance classification (build vs buy heuristic):\n")
+            for label in ("build-leaning", "buy-leaning", "mixed", "unclear", "too_short"):
+                if label in stance_counts:
+                    fh.write(f"  {label}: {stance_counts[label]}\n")
+            too_short = stance_counts.get("too_short", 0)
+            if too_short:
+                min_comments = config["stance"].get("min_comments", 0)
+                fh.write(f"  ({too_short} threads excluded from stance classification: "
+                         f"fewer than {min_comments} scraped comments, not enough text "
+                         f"for the heuristic to reach its minimum hit count — see "
+                         f"config stance._rule)\n")
         fh.write("\nTop factors by decision-tier coverage:\n")
         if payload["factors"] is None:
             fh.write("  (factors module not run)\n")
