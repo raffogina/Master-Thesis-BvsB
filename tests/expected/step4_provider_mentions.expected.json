@@ -1,16 +1,14 @@
 {
-  "_readme": "Expected-output model for out/provider_mentions.csv (step 4, AGGREGATE) — the vendor-landscape barometer. A provider row only exists when the provider was mentioned at least once.",
+  "_readme": "Expected-output model for out/provider_mentions.csv (step 4, AGGREGATE) — the vendor-landscape barometer. A provider row only exists when the provider was mentioned at least once. pct_of_total_mentions is the provider's share of all provider mentions (same relative-weight logic as factor_salience.csv; sums to ~100 across rows, up to rounding).",
   "kind": "csv",
-  "columns": ["provider", "category", "n_threads", "n_threads_decision",
-              "pct_of_threads", "total_mentions", "mean_sentence_sentiment"],
+  "columns": ["provider", "category", "n_threads",
+              "pct_of_total_mentions", "total_mentions"],
   "min_rows": 1,
   "unique_columns": ["provider"],
   "non_empty_columns": ["provider", "category"],
   "numeric_ranges": {
     "n_threads": {"min": 1},
-    "n_threads_decision": {"min": 0},
-    "pct_of_threads": {"min": 0, "max": 100},
-    "total_mentions": {"min": 1},
-    "mean_sentence_sentiment": {"min": -1, "max": 1, "allow_empty": true}
+    "pct_of_total_mentions": {"min": 0, "max": 100},
+    "total_mentions": {"min": 1}
   }
 }

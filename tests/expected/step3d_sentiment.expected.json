@@ -1,17 +1,11 @@
 {
-  "_readme": "Expected-output model for out/steps/step3d_sentiment.json (sentiment module — the only place the sentiment method exists). VADER compounds must stay within [-1, 1]; null means empty text or no backend. Tone-dictionary membership is checked in code (pipeline/checks.py check_module).",
+  "_readme": "Expected-output model for out/steps/step3d_sentiment.json (sentiment module — the only place the sentiment method exists). One record per TIER-1 thread: mean VADER compound of the first-person past-decision sentences (null when the thread has none) and how many such sentences were found. Consistency between the two fields is checked in code (pipeline/checks.py check_module).",
   "kind": "json",
   "records_key": "threads",
   "min_records": 1,
-  "required_fields": ["thread_id", "op_sentiment", "op_label",
-                      "comments_sentiment", "comments_label",
-                      "factor_tones", "provider_tones"],
-  "allowed_values": {
-    "op_label": ["positive", "negative", "neutral", ""],
-    "comments_label": ["positive", "negative", "neutral", ""]
-  },
+  "required_fields": ["thread_id", "decision_tone_mean", "n_decision_sentences"],
   "numeric_ranges": {
-    "op_sentiment": {"min": -1, "max": 1, "nullable": true},
-    "comments_sentiment": {"min": -1, "max": 1, "nullable": true}
+    "decision_tone_mean": {"min": -1, "max": 1, "nullable": true},
+    "n_decision_sentences": {"min": 0}
   }
 }

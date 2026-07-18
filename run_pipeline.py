@@ -9,15 +9,17 @@ automatic quality gate after each one:
   self-test              every module re-analyses a frozen fixture thread and
                          must match the frozen expected model exactly
   1  COLLECT (backbone)  pipeline/step1_collect.py    -> cache + manifest
-                         default source: the Arctic Shift .jsonl dumps saved
-                         in ./data (every file is read; names don't matter)
+                         source: the Arctic Shift .jsonl dumps saved in
+                         ./data (every file is read; names don't matter) —
+                         no network access anywhere in this step
   2  TIER    (backbone)  pipeline/step2_tier.py       -> thread tiers table
   3  ANALYSES (independent of each other — any can be skipped/deleted/broken
      without affecting the others; all read only the tier table + cache):
      3a stance           pipeline/step3a_stance.py    -> build/buy leaning
      3b factors          pipeline/step3b_factors.py   -> factor mentions
      3c providers        pipeline/step3c_providers.py -> provider mentions
-     3d sentiment        pipeline/step3d_sentiment.py -> VADER sentiment/tones
+     3d sentiment        pipeline/step3d_sentiment.py -> decision-sentence tone
+                                                        (tier-1 threads)
      3e terms            pipeline/step3e_terms.py     -> stemmed term counts
   4  AGGREGATE (backbone) pipeline/step4_aggregate.py -> the final tables,
                          built from whichever analyses succeeded
@@ -29,15 +31,13 @@ Failure policy (so one error never destroys the whole run):
     continues; the run then finishes with exit code 1 and a clear summary;
   - an analysis module whose .py file you deleted is simply skipped (that is
     a supported way to drop a method from the thesis);
-  - --skip-sentiment / --skip-terms / --skip-stance / --skip-factors /
-    --skip-providers skip a module for one run without touching any file.
+  - --skip-stance / --skip-factors / --skip-providers / --skip-sentiment /
+    --skip-terms skip a module for one run without touching any file.
 
 All check results go to out/checks_report.txt. Typical usage:
   python3 run_pipeline.py                      # analyse the .jsonl dumps in ./data
-                                               # (default source — no network, no api key)
+                                               # (no network access anywhere)
   python3 run_pipeline.py --reanalyze          # rebuild everything from cache
-  python3 run_pipeline.py --skip-sentiment     # thesis without the sentiment method
-  python3 run_pipeline.py --source archive-api # previous online collector (audit trail)
   python3 -m pipeline.step3d_sentiment --out out   # re-run one module alone
 
 Method references: VADER sentiment (Hutto & Gilbert 2014); dictionary-based
@@ -68,11 +68,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     step1_collect.add_cli_arguments(parser)      # collection + shared flags
-    parser.add_argument("--sentiment", choices=["auto", "vader", "textblob", "none"],
-                        default="auto",
-                        help="sentiment backend ('none' skips the sentiment module)")
-    parser.add_argument("--no-legacy", action="store_true",
-                        help="skip the per-thread keyword_frequency.csv output")
     for module in ANALYSIS_ORDER:
         parser.add_argument(f"--skip-{module}", action="store_true",
                             help=f"do not run the {module} analysis module this run")
@@ -81,13 +76,9 @@ def main():
     args = parser.parse_args()
 
     skipped = {m for m in ANALYSIS_ORDER if getattr(args, f"skip_{m}")}
-    if args.sentiment == "none":
-        skipped.add("sentiment")
 
     if args.reanalyze:
         source_desc = "offline re-analysis of the existing cache"
-    elif args.source == "archive-api":
-        source_desc = "live Arctic Shift archive api"
     else:
         source_desc = f"local .jsonl dumps in '{args.data_dir}' (no network)"
     print(f"🚀 Build-vs-Buy pipeline {PIPELINE_VERSION}")
@@ -102,7 +93,7 @@ def main():
     # Gate 0: prove the analysis code still behaves exactly as frozen, before
     # touching any data (and before spending any of the request budget).
     if not args.skip_checks:
-        statuses = checker.self_test(args.sentiment)
+        statuses = checker.self_test()
         if statuses.get("tier") != "ok":
             abort(checker, "Self-test (tier rule)")
         for module in ANALYSIS_ORDER:
@@ -138,10 +129,7 @@ def main():
             print(f"   ⚠️ {module} module {status} — quarantined, continuing without it")
             continue
         try:
-            if module == "sentiment":
-                mod.run(args.config, args.out, args.sentiment)
-            else:
-                mod.run(args.config, args.out)
+            mod.run(args.config, args.out)
         except Exception as exc:
             quarantined[module] = f"crashed while running: {exc!r}"
             print(f"   ⚠️ {module} module crashed ({exc!r}) — quarantined, "
@@ -155,10 +143,8 @@ def main():
         healthy.append(module)
 
     # Backbone: aggregate consumes only the healthy analyses.
-    step4_aggregate.run(args.config, args.out, no_legacy=args.no_legacy,
-                        use_modules=set(healthy))
-    if not args.skip_checks and not checker.check_step4(set(healthy),
-                                                        no_legacy=args.no_legacy):
+    step4_aggregate.run(args.config, args.out, use_modules=set(healthy))
+    if not args.skip_checks and not checker.check_step4(set(healthy)):
         abort(checker, "Step 4 (aggregate)")
 
     if not args.skip_checks:

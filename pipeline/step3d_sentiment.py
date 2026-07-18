@@ -1,21 +1,19 @@
-"""STEP 3d — SENTIMENT (OPTIONAL): VADER sentiment per kept thread.
+"""STEP 3d — SENTIMENT: mean tone of first-person past-decision sentences.
 
 Input   out/steps/step2_thread_tiers.csv (+ manifest + cached threads)
 Output  out/steps/step3d_sentiment.json
 
-The entire sentiment method lives in THIS file only, so it can be excluded
-from the thesis without touching anything else:
-  - skip it for one run:        python3 run_pipeline.py --skip-sentiment
-  - or delete this file:        the orchestrator notes it and carries on
-Either way every other table is still produced; only the sentiment/tone
-columns stay empty.
-
-Measured per thread (Hutto & Gilbert 2014; thresholds in config "sentiment"):
-  - compound score of the original post   (author-satisfaction proxy)
-  - mean compound over the comments       (community reaction)
-  - mean tone of sentences mentioning each factor / provider (the dictionaries
-    are compiled from config, NOT read from the other modules' outputs, so
-    this module stays independent of them)
+The entire sentiment method lives in THIS file only, and it measures exactly
+ONE thing: for every TIER-1 (decision) thread, the mean VADER compound score
+(Hutto & Gilbert 2014) of the sentences that report a decision actually taken
+in the past. A sentence qualifies only when it contains BOTH
+  - a past-decision marker  (config sentiment.past_decision_markers), and
+  - a first-person marker   (config sentiment.first_person_markers),
+so first-hand experiences ("we bought Clio and regret it") are measured while
+hypotheticals and advice to third parties ("you should buy X") are not.
+Both dictionaries live in config/keywords.json like every other instrument
+(dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013).
+No other sentiment is measured anywhere in the pipeline.
 
 Standalone use:
   python3 -m pipeline.step3d_sentiment --config config/keywords.json --out out
@@ -25,70 +23,36 @@ import argparse
 import os
 
 from . import common
-from .common import build_sentiment, count_matches, sentences_of
+from .common import build_sentiment, compile_terms, count_matches, sentences_of
 
 
 class SentimentMeasurer:
-    def __init__(self, config, sentiment_choice="auto"):
-        self.score, self.backend = build_sentiment(sentiment_choice)
+    def __init__(self, config):
+        self.score, self.backend = build_sentiment()
         senti = config["sentiment"]
-        self.pos_thr = senti["positive_threshold"]
-        self.neg_thr = senti["negative_threshold"]
-        self.factors = common.compile_factor_patterns(config)
-        self.providers = common.compile_provider_patterns(config)
+        self.re_decision = compile_terms(senti["past_decision_markers"])
+        self.re_first_person = compile_terms(senti["first_person_markers"])
 
-    def sentiment_of(self, text):
-        if not self.score or not text.strip():
-            return None
-        return round(self.score(text), 4)
-
-    def label_of(self, value):
-        if value is None:
-            return ""
-        if value >= self.pos_thr:
-            return "positive"
-        if value <= self.neg_thr:
-            return "negative"
-        return "neutral"
-
-    def _mean_tone(self, pattern, sents):
-        tones = [self.sentiment_of(s) for s in sents if count_matches(pattern, s)]
-        tones = [t for t in tones if t is not None]
-        return round(sum(tones) / len(tones), 4) if tones else None
+    def decision_sentences(self, op_text, comment_texts):
+        """Sentences (OP + comments) with a past-decision AND a first-person
+        marker."""
+        full_text = " \n ".join([op_text] + comment_texts)
+        return [s for s in sentences_of(full_text)
+                if count_matches(self.re_decision, s)
+                and count_matches(self.re_first_person, s)]
 
     def measure(self, op_text, comment_texts):
-        full_text = " \n ".join([op_text] + comment_texts)
-        sents = sentences_of(full_text)
-
-        factor_tones = {}
-        for key, (_label, pattern) in self.factors.items():
-            tone = self._mean_tone(pattern, sents)
-            if tone is not None:
-                factor_tones[key] = tone
-
-        provider_tones = {}
-        for name, _category, _legal_specific, pattern in self.providers:
-            tone = self._mean_tone(pattern, sents)
-            if tone is not None:
-                provider_tones[name] = tone
-
-        op_sent = self.sentiment_of(op_text)
-        comment_sents = [self.sentiment_of(c) for c in comment_texts]
-        comment_sents = [c for c in comment_sents if c is not None]
-        comments_mean = round(sum(comment_sents) / len(comment_sents), 4) if comment_sents else None
-
-        return {
-            "op_sentiment": op_sent, "op_label": self.label_of(op_sent),
-            "comments_sentiment": comments_mean,
-            "comments_label": self.label_of(comments_mean),
-            "factor_tones": factor_tones, "provider_tones": provider_tones,
-        }
+        tones = [self.score(s)
+                 for s in self.decision_sentences(op_text, comment_texts)]
+        mean = round(sum(tones) / len(tones), 4) if tones else None
+        return {"decision_tone_mean": mean, "n_decision_sentences": len(tones)}
 
 
-def run(config_path, out_dir, sentiment_choice="auto"):
-    measurer = SentimentMeasurer(common.load_config(config_path), sentiment_choice)
-    pairs = common.kept_thread_wrappers(out_dir)
-    print(f"💬 Step 3d — sentiment for {len(pairs)} kept threads "
+def run(config_path, out_dir):
+    measurer = SentimentMeasurer(common.load_config(config_path))
+    pairs = [(row, wrapper) for row, wrapper in common.kept_thread_wrappers(out_dir)
+             if row["corpus_tier"] == "1"]
+    print(f"💬 Step 3d — decision-sentence tone for {len(pairs)} tier-1 threads "
           f"(backend: {measurer.backend})")
 
     records = []
@@ -113,10 +77,8 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", default="config/keywords.json")
     parser.add_argument("--out", default="out")
-    parser.add_argument("--sentiment", choices=["auto", "vader", "textblob", "none"],
-                        default="auto")
     args = parser.parse_args()
-    run(args.config, args.out, args.sentiment)
+    run(args.config, args.out)
 
 
 if __name__ == "__main__":

@@ -4,10 +4,7 @@ Input   out/steps/step2_thread_tiers.csv (+ manifest + cached threads)
 Output  out/steps/step3c_providers.json
 
 Counts each config provider pattern over the full thread text (OP + all
-comments) — the vendor-landscape barometer. Mentions only; the OPTIONAL
-sentence tone per provider comes from the separate sentiment module (step3d)
-and is joined at aggregate time. Mind the ambiguous names listed in config
-_known_ambiguities (harvey, gavel, relativity, ...) during manual validation.
+comments) — the vendor-landscape barometer. Mentions only.
 
 Standalone use:
   python3 -m pipeline.step3c_providers --config config/keywords.json --out out

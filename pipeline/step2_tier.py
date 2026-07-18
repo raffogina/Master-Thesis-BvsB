@@ -38,18 +38,19 @@ class TierAssigner:
         self.re_weak = compile_terms(gate["weak_verbs"])
         self.re_nouns = compile_terms(gate["software_nouns"])
         self.re_legal = compile_terms(gate["legal_terms"])
-        self.specialist_subs = {s.lower() for s in config["subreddits"]["specialist"]}
         self.factors = common.compile_factor_patterns(config)
         self.providers = common.compile_provider_patterns(config)
 
-    def tier(self, subreddit, title, selftext):
+    def tier(self, title, selftext):
         """Assign a corpus tier from title+body (rule documented in config).
 
         tier 1: explicit decision context AND legal-domain evidence
         tier 2: legal-domain evidence AND tech context AND >=1 factor/provider
         tier 0: excluded (off-topic noise)
         Tiering uses only title+body so the pre-download filter and the final
-        analysis apply the identical rule.
+        analysis apply the identical rule. Subreddit selection happens
+        upstream (which dumps are saved into --data-dir), so this rule judges
+        every thread on its own text only, regardless of subreddit.
         """
         head = clean_text(f"{title}\n{selftext}")
 
@@ -62,7 +63,6 @@ class TierAssigner:
                     legal_provider_hit = legal_provider_hit or name
 
         legal_domain = (bool(count_matches(self.re_legal, head))
-                        or subreddit.lower() in self.specialist_subs
                         or bool(legal_provider_hit))
         if not legal_domain:
             return 0, "no legal-domain evidence"
@@ -106,7 +106,7 @@ def run(config_path, out_dir):
             })
             continue
         title, selftext, comments, meta = extracted
-        tier, reason = assigner.tier(entry["subreddit"], title, selftext)
+        tier, reason = assigner.tier(title, selftext)
         counts[tier] += 1
         rows.append({
             "thread_id": entry["thread_id"], "subreddit": entry["subreddit"],

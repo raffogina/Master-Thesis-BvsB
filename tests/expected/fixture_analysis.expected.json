@@ -62,26 +62,8 @@
     ]
   },
   "sentiment": {
-    "op_sentiment": -0.6542,
-    "op_label": "negative",
-    "comments_sentiment": 0.4761,
-    "comments_label": "positive",
-    "factor_tones": {
-      "cost_roi": 0.1591,
-      "integration": -0.4404,
-      "lockin_dependency": -0.1436,
-      "control_customization_ip": -0.0301,
-      "usability_adoption": 0.3182,
-      "maintenance_support": 0.1531,
-      "team_expertise": 0.0,
-      "professional_risk_accuracy": -0.25
-    },
-    "provider_tones": {
-      "Harvey": 0.3612,
-      "Spellbook": 0.0,
-      "Ironclad": 0.3612,
-      "ChatGPT/OpenAI": 0.4215
-    }
+    "decision_tone_mean": 0.2107,
+    "n_decision_sentences": 2
   },
   "term_counts": {
     "build": 2,

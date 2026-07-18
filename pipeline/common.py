@@ -13,18 +13,13 @@ import csv
 import html
 import json
 import os
-import random
 import re
-import time
 from datetime import datetime, timezone
-
-DEFAULT_USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 COLLECTOR_NAME = "arctic-shift archive (research mirror + local query screening)"
 
 # All intermediate step outputs live in this sub-folder of --out; the final
-# thesis tables stay at the top level of --out, exactly as in scraper_v2.
+# thesis tables stay at the top level of --out.
 STEPS_DIRNAME = "steps"
 
 MANIFEST_NAME = "step1_collection_manifest.csv"
@@ -45,21 +40,8 @@ def utc_now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-def human_sleep(base):
-    """Sleep around `base` seconds with human-like variation.
-
-    Uniform jitter (0.7x-1.7x) breaks the fixed request beat, and a small
-    share of calls adds a longer 'reading' pause so the overall timing
-    pattern stays irregular rather than metronomic.
-    """
-    delay = base * random.uniform(0.7, 1.7)
-    if random.random() < 0.07:
-        delay += random.uniform(15, 40)
-    time.sleep(delay)
-
-
 # Minimal standard English stop list (union of the common core of the NLTK and
-# scikit-learn lists); extended at runtime by config legacy_keywords.extra_stopwords.
+# scikit-learn lists); extended at runtime by config terms.extra_stopwords.
 BASE_STOPWORDS = set("""
 a about above after again against all am an and any are as at be because been
 before being below between both but by can could did do does doing down during
@@ -74,15 +56,25 @@ would shall may might must ought
 
 
 # ---------------------------------------------------------------------------
-# Term matching: phrases with optional trailing-* wildcards, space==hyphen
+# Term matching: phrases with optional trailing-* wildcards, space==hyphen,
+# and one tolerated adverb between phrase words
 # ---------------------------------------------------------------------------
+
+# Adverbs tolerated between the words of a phrase term ('we bought' also
+# matches 'we just bought'); single-word terms are unaffected.
+PHRASE_GAP_ADVERBS = ("just", "recently", "finally")
+_PHRASE_GAP = r"[\s\-]+(?:(?:" + "|".join(PHRASE_GAP_ADVERBS) + r")[\s\-]+)?"
+
 
 def compile_terms(terms):
     """Compile a list of dictionary terms into one alternation regex.
 
     'customiz*'  -> matches customize, customization, ...
     'in house'   -> matches 'in house', 'in-house', 'in  house'
-    All matches are word-bounded to avoid the v1 substring bug
+    'we bought'  -> also matches 'we just bought', 'we recently bought',
+                    'we finally bought' (one PHRASE_GAP_ADVERBS word may sit
+                    between the words of any phrase)
+    All matches are word-bounded to avoid a substring gating bug
     ('air' matching 'airport', 'custom' matching 'customers').
     """
     parts = []
@@ -93,7 +85,7 @@ def compile_terms(terms):
         wildcard = term.endswith("*")
         if wildcard:
             term = term[:-1]
-        piece = re.escape(term).replace(r"\ ", r"[\s\-]+")
+        piece = re.escape(term).replace(r"\ ", _PHRASE_GAP)
         piece = piece + (r"\w*" if wildcard else "")
         parts.append(piece)
     if not parts:
@@ -157,45 +149,23 @@ def build_stemmer():
 
 
 # ---------------------------------------------------------------------------
-# Sentiment backends: vaderSentiment -> NLTK VADER -> TextBlob -> none
+# Sentiment backend: vaderSentiment only
 # ---------------------------------------------------------------------------
 
-def build_sentiment(choice):
-    """Return (score_fn, backend_name); score_fn maps text -> [-1, 1]."""
-    def try_vader_pkg():
+def build_sentiment():
+    """Return (score_fn, backend_name); score_fn maps text -> [-1, 1].
+
+    vaderSentiment (Hutto & Gilbert 2014) is the only supported backend; the
+    run stops with a clear message when the package is missing.
+    """
+    try:
         from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-        analyzer = SentimentIntensityAnalyzer()
-        return lambda t: analyzer.polarity_scores(t)["compound"], "vaderSentiment (Hutto & Gilbert 2014)"
-
-    def try_nltk_vader():
-        import nltk
-        from nltk.sentiment.vader import SentimentIntensityAnalyzer
-        try:
-            analyzer = SentimentIntensityAnalyzer()
-        except LookupError:
-            nltk.download("vader_lexicon", quiet=True)
-            analyzer = SentimentIntensityAnalyzer()
-        return lambda t: analyzer.polarity_scores(t)["compound"], "NLTK VADER (Hutto & Gilbert 2014)"
-
-    def try_textblob():
-        from textblob import TextBlob
-        return lambda t: TextBlob(t).sentiment.polarity, "TextBlob PatternAnalyzer (Loria 2018)"
-
-    attempts = {
-        "vader": [try_vader_pkg, try_nltk_vader],
-        "textblob": [try_textblob],
-        "none": [],
-        "auto": [try_vader_pkg, try_nltk_vader, try_textblob],
-    }[choice]
-    for attempt in attempts:
-        try:
-            return attempt()
-        except Exception:
-            continue
-    if choice != "none":
-        print("⚠️  No sentiment library available (pip install vaderSentiment). "
-              "Sentiment columns will be empty.")
-    return None, "none"
+    except ImportError:
+        raise SystemExit("🛑 vaderSentiment is not installed — "
+                         "install it with: pip install vaderSentiment")
+    analyzer = SentimentIntensityAnalyzer()
+    return (lambda t: analyzer.polarity_scores(t)["compound"],
+            "vaderSentiment (Hutto & Gilbert 2014)")
 
 
 # ---------------------------------------------------------------------------
@@ -234,20 +204,6 @@ def sentences_of(text):
 # store shared by steps 1-3; wrappers are never modified after collection)
 # ---------------------------------------------------------------------------
 
-def walk_comments(children):
-    """Recursively yield comment bodies (v1 only read top-level comments)."""
-    for child in children or []:
-        if child.get("kind") != "t1":
-            continue
-        data = child.get("data", {})
-        body = data.get("body")
-        if body and body not in ("[deleted]", "[removed]"):
-            yield body
-        replies = data.get("replies")
-        if isinstance(replies, dict):
-            yield from walk_comments(replies.get("data", {}).get("children"))
-
-
 def load_wrapper(cache_path):
     with open(cache_path, encoding="utf-8") as fh:
         return json.load(fh)
@@ -256,43 +212,25 @@ def load_wrapper(cache_path):
 def load_wrapper_texts(wrapper):
     """Extract (title, selftext, comment_texts, meta) from a cached wrapper.
 
-    Two cache formats are supported so re-analysis works across collectors:
-      - "listing": the raw Reddit JSON listing (reddit-json collector)
-      - "post":    pre-extracted texts written by non-JSON collectors
-    Returns None when the wrapper holds no post (deleted/empty thread).
+    Wrappers hold the texts pre-extracted at collection time; the Arctic Shift
+    dumps already deliver every comment of a thread (nested replies included)
+    as one flat list. Returns None when the wrapper holds no post
+    (deleted/empty thread).
     """
-    if "listing" in wrapper:
-        listing = wrapper["listing"]
-        children = listing[0].get("data", {}).get("children", [])
-        if not children:
-            return None
-        post = children[0]["data"]
-        title = post.get("title", "")
-        selftext = post.get("selftext", "")
-        if selftext in ("[deleted]", "[removed]"):
-            selftext = ""
-        comments = [clean_text(c) for c in walk_comments(listing[1]["data"]["children"])]
-        meta = {
-            "created": datetime.fromtimestamp(post.get("created_utc", 0), tz=timezone.utc)
-            .strftime("%Y-%m-%d") if post.get("created_utc") else "",
-            "score": post.get("score", ""),
-            "num_comments": post.get("num_comments", ""),
-        }
-    else:
-        post = wrapper.get("post")
-        if not post:
-            return None
-        title = post.get("title", "")
-        selftext = post.get("selftext", "")
-        if selftext in ("[deleted]", "[removed]"):
-            selftext = ""
-        comments = [clean_text(c) for c in post.get("comments", [])
-                    if c and c not in ("[deleted]", "[removed]")]
-        meta = {
-            "created": post.get("created", ""),
-            "score": post.get("score", ""),
-            "num_comments": post.get("num_comments", ""),
-        }
+    post = wrapper.get("post")
+    if not post:
+        return None
+    title = post.get("title", "")
+    selftext = post.get("selftext", "")
+    if selftext in ("[deleted]", "[removed]"):
+        selftext = ""
+    comments = [clean_text(c) for c in post.get("comments", [])
+                if c and c not in ("[deleted]", "[removed]")]
+    meta = {
+        "created": post.get("created", ""),
+        "score": post.get("score", ""),
+        "num_comments": post.get("num_comments", ""),
+    }
     return clean_text(title), clean_text(selftext), comments, meta
 
 
@@ -341,21 +279,31 @@ def load_config(path):
         return json.load(fh)
 
 
-def resolve_subreddits(config, override_csv=""):
-    if override_csv:
-        return [s.strip() for s in override_csv.split(",") if s.strip()]
-    return config["subreddits"]["specialist"] + config["subreddits"]["practitioner"]
+def provider_query(config):
+    """One derived discovery query ORing the patterns of every legal_specific
+    provider, so config 'providers' is the single source of truth: edit the
+    provider list there and the screening filter follows. Generic tools
+    (legal_specific=false: chatgpt, aws, ...) are measured once a thread is
+    collected but are too unspecific to drive discovery."""
+    terms = []
+    for entry in config["providers"]["entries"]:
+        if entry.get("legal_specific"):
+            terms.extend(entry["patterns"])
+    return " OR ".join(f'"{t}"' if " " in t else t for t in terms)
 
 
 def resolve_queries(config, override_csv=""):
+    """Config queries + the derived provider-name query. A CLI override
+    replaces BOTH (it is the exact list to screen with)."""
     if override_csv:
         return [q.strip() for q in override_csv.split(";") if q.strip()]
-    return config["queries"]
+    return list(config["queries"]) + [provider_query(config)]
 
 
 def write_csv(path, fieldnames, rows):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", newline="", encoding="utf-8") as fh:
+    # utf-8-sig adds a BOM so Excel detects UTF-8; readers strip it again
+    with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
@@ -363,7 +311,7 @@ def write_csv(path, fieldnames, rows):
 
 
 def read_csv(path):
-    with open(path, newline="", encoding="utf-8") as fh:
+    with open(path, newline="", encoding="utf-8-sig") as fh:
         return list(csv.DictReader(fh))
 
 

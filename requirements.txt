@@ -1,14 +1,10 @@
-# Core
-requests>=2.31
+# Versions PINNED to the ones the thesis results were produced with — a
+# different VADER version could change sentiment scores and fail the frozen
+# self-test. run_summary.txt records the versions actually used in each run.
 
-# Sentiment (recommended backend; cite Hutto & Gilbert 2014)
-vaderSentiment>=3.3.2
+# Sentiment backend (the only one supported — the pipeline stops without it;
+# cite Hutto & Gilbert 2014)
+vaderSentiment==3.3.2
 
 # Porter stemmer for the term-discovery step (Porter 1980)
-nltk>=3.8
-
-# HTML parsing for the old.reddit.com collector (branch option-a-old-html)
-beautifulsoup4>=4.12
-
-# Optional alternative sentiment backend
-# textblob>=0.17
+nltk==3.9.2

@@ -69,7 +69,7 @@ def import_analysis_module(module):
 
 
 def _read_csv_with_header(path):
-    with open(path, newline="", encoding="utf-8") as fh:
+    with open(path, newline="", encoding="utf-8-sig") as fh:
         reader = csv.DictReader(fh)
         rows = list(reader)
         return reader.fieldnames or [], rows
@@ -200,7 +200,7 @@ class Checker:
         return payload
 
     # ------------------------------------------------------------- self-test
-    def self_test(self, sentiment_choice="auto"):
+    def self_test(self):
         """Analyse the frozen fixture thread with every analysis module and compare
         with the frozen expected model. Uses the config SNAPSHOT shipped with
         the fixture, so later edits to config/keywords.json (e.g. adding
@@ -230,8 +230,7 @@ class Checker:
 
         # -- tier rule (backbone, step 2 — never optional) ---------------------
         title, selftext, _c, _m = common.load_wrapper_texts(fixture)
-        tier, reason = TierAssigner(fixture_config).tier(fixture["subreddit"],
-                                                         title, selftext)
+        tier, reason = TierAssigner(fixture_config).tier(title, selftext)
         ok = self._record(stage, "corpus tier matches expected model",
                           tier == expected["tier"],
                           f"got {tier}, expected {expected['tier']}")
@@ -276,22 +275,10 @@ class Checker:
                                 f"got {got!r}, expected {expected['providers']!r}")
 
         def test_sentiment(mod):
-            measurer = mod.SentimentMeasurer(fixture_config, sentiment_choice)
-            got = measurer.measure(op_text, comments)
-            if measurer.backend != expected["sentiment_backend"]:
-                # different backend installed: numbers not comparable — accept,
-                # but say so (the output gates still range-check every value)
-                return self._record(stage, "sentiment backend differs from expected "
-                                           "model (numeric comparison skipped)", True,
-                                    f"{measurer.backend} vs {expected['sentiment_backend']}")
-            ok_all = True
-            for field in sorted(set(expected["sentiment"]) | set(got)):
-                ok_all = self._record(
-                    stage, f"sentiment '{field}' matches expected model",
-                    got.get(field) == expected["sentiment"].get(field),
-                    f"got {got.get(field)!r}, expected "
-                    f"{expected['sentiment'].get(field)!r}") and ok_all
-            return ok_all
+            got = mod.SentimentMeasurer(fixture_config).measure(op_text, comments)
+            return self._record(stage, "decision-sentence tone matches expected model",
+                                got == expected["sentiment"],
+                                f"got {got!r}, expected {expected['sentiment']!r}")
 
         def test_terms(mod):
             counter = mod.TermCounter(fixture_config)
@@ -356,10 +343,10 @@ class Checker:
                                     "gate dictionaries / collection")
         return self.stage_passed(stage)
 
-    def _kept_ids(self):
+    def _kept_ids(self, tiers=("1", "2")):
         tiers_path = os.path.join(common.steps_dir(self.out_dir), common.TIERS_NAME)
         return [r["thread_id"] for r in common.read_csv(tiers_path)
-                if r["corpus_tier"] in ("1", "2")]
+                if r["corpus_tier"] in tiers]
 
     def check_module(self, module):
         """Output gate for one analysis module (stance/factors/providers/
@@ -374,10 +361,18 @@ class Checker:
         records = payload.get("threads", [])
 
         got_ids = [r.get("thread_id", "") for r in records]
-        kept_ids = self._kept_ids()
-        self._record(stage, f"{module}: covers exactly the threads step 2 kept",
-                     got_ids == kept_ids,
-                     f"{len(got_ids)} measured vs {len(kept_ids)} kept")
+        if module == "sentiment":
+            # the sentiment module measures decision tone on tier-1 threads only
+            kept_ids = self._kept_ids(("1",))
+            self._record(stage, "sentiment: covers exactly the tier-1 threads "
+                                "step 2 kept",
+                         got_ids == kept_ids,
+                         f"{len(got_ids)} measured vs {len(kept_ids)} tier-1 kept")
+        else:
+            kept_ids = self._kept_ids()
+            self._record(stage, f"{module}: covers exactly the threads step 2 kept",
+                         got_ids == kept_ids,
+                         f"{len(got_ids)} measured vs {len(kept_ids)} kept")
 
         factor_keys = set(common.compile_factor_patterns(self.config).keys())
         provider_names = {p[0] for p in common.compile_provider_patterns(self.config)}
@@ -411,22 +406,18 @@ class Checker:
                          bad_entry == 0, f"{bad_entry} malformed entr(y/ies)")
 
         if module == "sentiment":
-            bad_tone, bad_key = 0, []
+            bad = 0
             for rec in records:
-                for key, tone in rec.get("factor_tones", {}).items():
-                    if key not in factor_keys:
-                        bad_key.append(key)
-                    if not (isinstance(tone, (int, float)) and -1 <= tone <= 1):
-                        bad_tone += 1
-                for name, tone in rec.get("provider_tones", {}).items():
-                    if name not in provider_names:
-                        bad_key.append(name)
-                    if not (isinstance(tone, (int, float)) and -1 <= tone <= 1):
-                        bad_tone += 1
-            self._record(stage, "tone keys exist in the config dictionaries",
-                         not bad_key, f"unknown: {sorted(set(bad_key))[:5]}")
-            self._record(stage, "all sentence tones within [-1, 1]",
-                         bad_tone == 0, f"{bad_tone} out-of-range tone(s)")
+                tone = rec.get("decision_tone_mean")
+                n = rec.get("n_decision_sentences")
+                well_formed = isinstance(n, int) and n >= 0 and (
+                    (tone is None and n == 0)
+                    or (isinstance(tone, (int, float)) and -1 <= tone <= 1 and n >= 1))
+                if not well_formed:
+                    bad += 1
+            self._record(stage, "decision tones within [-1, 1] and consistent "
+                                "with the sentence counts",
+                         bad == 0, f"{bad} malformed record(s)")
 
         if module == "terms":
             bad_counts = 0
@@ -441,12 +432,12 @@ class Checker:
                          bad_counts == 0, f"{bad_counts} inconsistent stem(s)")
         return self.stage_passed(stage)
 
-    def check_step4(self, used_modules, no_legacy=False):
+    def check_step4(self, used_modules):
         """used_modules: analysis modules whose outputs step 4 consumed —
         only their tables are validated."""
         stage = "STEP 4"
         print("🔎 Checking step 4 outputs against expected models")
-        min_count = self.config["legacy_keywords"]["min_count"]
+        min_count = self.config["terms"]["min_count"]
 
         master = self._check_csv_against_spec(
             stage, os.path.join(self.out_dir, "threads_master.csv"),
@@ -493,14 +484,6 @@ class Checker:
                 bad = sum(1 for r in discovery if int(r.get("total_count") or 0) < min_count)
                 self._record(stage, f"term_discovery: totals >= config min_count "
                                     f"({min_count})", bad == 0, f"{bad} row(s) below")
-            if not no_legacy:
-                keywords = self._check_csv_against_spec(
-                    stage, os.path.join(self.out_dir, "keyword_frequency.csv"),
-                    self._spec("step4_keyword_frequency.expected.json"))
-                if keywords is not None:
-                    bad = sum(1 for r in keywords if int(r.get("count") or 0) < min_count)
-                    self._record(stage, f"keyword_frequency: counts >= config min_count "
-                                        f"({min_count})", bad == 0, f"{bad} row(s) below")
 
         summary_path = os.path.join(self.out_dir, "run_summary.txt")
         self._record(stage, "run_summary.txt exists and is non-empty",
@@ -534,14 +517,10 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", default="config/keywords.json")
     parser.add_argument("--out", default="out")
-    parser.add_argument("--sentiment", choices=["auto", "vader", "textblob", "none"],
-                        default="auto", help="backend used for the self-test")
-    parser.add_argument("--no-legacy", action="store_true",
-                        help="do not expect keyword_frequency.csv")
     args = parser.parse_args()
 
     checker = Checker(args.out, args.config)
-    checker.self_test(args.sentiment)
+    checker.self_test()
     checker.check_step1()
     checker.check_step2()
     present = []
@@ -551,7 +530,7 @@ def main():
             present.append(module)
         else:
             print(f"   ℹ️ {module} output not present — skipping its checks")
-    checker.check_step4(set(present), no_legacy=args.no_legacy)
+    checker.check_step4(set(present))
     ok = checker.write_report()
     raise SystemExit(0 if ok else 1)
 
