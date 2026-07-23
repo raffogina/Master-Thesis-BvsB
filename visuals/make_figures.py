@@ -27,6 +27,7 @@ is the same pre-existing WARN as before, mitigated by direct value labels).
 
 import json
 import os
+import textwrap
 
 import circlify
 import matplotlib.pyplot as plt
@@ -288,16 +289,18 @@ def fig_build_vs_buy_presence(master):
 # percentage) rather than 1.15x the max bar, so bar length isn't inflated
 # relative to the full possible range.
 # ---------------------------------------------------------------------------
-def fig_factor_salience(factors, top_n=12):
-    df = factors.sort_values("thread_coverage_pct_all", ascending=True).tail(top_n)
-    fig, ax = plt.subplots(figsize=(7.5, 5.5))
+def fig_factor_salience(factors, top_n=None):
+    df = factors.sort_values("thread_coverage_pct_all", ascending=True)
+    if top_n is not None:
+        df = df.tail(top_n)
+    fig, ax = plt.subplots(figsize=(7.5, max(5.5, 0.38 * len(df) + 1.2)))
     bars = ax.barh(df["label"], df["thread_coverage_pct_all"], color=MAROON, height=0.65)
     for bar, val in zip(bars, df["thread_coverage_pct_all"]):
         ax.text(val + 1, bar.get_y() + bar.get_height() / 2, f"{val:.0f}%",
                  va="center", ha="left", fontsize=8.5, color=INK_SECONDARY)
     ax.set_xlabel("Share of all threads mentioning the factor (%)")
-    ax.set_title(f"Top {top_n} factors by thread salience", loc="left",
-                 fontsize=11, pad=12)
+    title = f"Top {top_n} factors by thread salience" if top_n is not None else "All factors by thread salience"
+    ax.set_title(title, loc="left", fontsize=11, pad=12)
     ax.set_xlim(0, 100)
     _clean_axes(ax, hide_spines=("top", "right", "left"))
     ax.tick_params(left=False)
@@ -314,8 +317,19 @@ def fig_factor_salience(factors, top_n=12):
 # marks themselves — this figure is about relative market presence, not
 # precise comparison (see fig_provider_mentions v1 / bar chart for that).
 # ---------------------------------------------------------------------------
-def fig_provider_mentions(providers, top_n=10):
-    df = providers.sort_values("n_threads", ascending=False).head(top_n)
+def fig_provider_mentions(providers, min_threads=50):
+    # Cutting providers below min_threads (rather than a fixed top-N) keeps
+    # every provider whose count is high enough to render as a legible,
+    # labeled circle, and drops exactly the ones that would otherwise pack in
+    # as unreadable slivers. Threshold chosen empirically at 50: below that,
+    # circles get small enough that some labels (esp. longer names like
+    # "Power Platform", "Adobe/Acrobat Sign") no longer fit even at the 6pt
+    # floor (see fig_provider_mentions v1 for the un-cut version).
+    df = providers.sort_values("n_threads", ascending=False)
+    kept = df[df["n_threads"] >= min_threads]
+    dropped = df[df["n_threads"] < min_threads].sort_values(
+        "n_threads", ascending=False)
+    df = kept
     data = [{"id": row.provider, "datum": row.n_threads} for row in df.itertuples()]
     circles = circlify.circlify(
         data, show_enclosure=False,
@@ -332,7 +346,7 @@ def fig_provider_mentions(providers, top_n=10):
     y_min = min(c.y - c.r for c in circles) - pad
     y_max = max(c.y + c.r for c in circles) + pad
 
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=(11, 11))
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
     ax.set_aspect("equal")
@@ -342,10 +356,21 @@ def fig_provider_mentions(providers, top_n=10):
 
     # Split on "/" for alt-name providers (e.g. "Claude/Anthropic") so they
     # wrap on a real word boundary instead of textwrap hyphenating mid-word.
+    # Two-word names with no "/" (e.g. "Bloomberg Law") get the same
+    # word-boundary treatment via textwrap, balanced across two lines —
+    # a single wide line is what pushed names like that below the legibility
+    # floor before min_threads was tuned to account for it.
     for c in circles:
         ax.add_patch(plt.Circle((c.x, c.y), c.r, facecolor=MAROON,
                                  edgecolor="white", linewidth=2, alpha=0.9))
-        lines = c.ex["id"].split("/")
+        name = c.ex["id"]
+        if "/" in name:
+            lines = name.split("/")
+        elif " " in name:
+            lines = textwrap.wrap(name, width=max(len(name) // 2, 1),
+                                   break_long_words=False)
+        else:
+            lines = [name]
         fontsize = 15.0
         label = ax.text(c.x, c.y, "\n".join(lines), ha="center", va="center",
                          fontsize=fontsize, color="white", linespacing=1.2)
@@ -358,16 +383,29 @@ def fig_provider_mentions(providers, top_n=10):
         diameter_px = abs(x1 - x0)
         scale = min(1.0, 0.82 * diameter_px / bbox.width,
                     0.82 * diameter_px / bbox.height)
+        # Safety net: below this scale even the 6pt floor would overflow the
+        # bubble. min_threads should already keep this from triggering; it
+        # only guards against a future data refresh reintroducing a gap.
+        if scale < 0.4:
+            label.remove()
+            continue
         fontsize = max(6.0, fontsize * scale)
         label.set_fontsize(fontsize)
 
-    ax.set_title(f"Top {top_n} providers by market presence", loc="left",
-                 fontsize=11, pad=12)
-    ax.text(0.5, -0.03,
-             "Circle area is proportional to the number of threads mentioning "
-             "the provider.",
-             transform=ax.transAxes, fontsize=7.5, color=INK_MUTED,
-             ha="center", va="top")
+    ax.set_title("Providers by market presence", loc="left", fontsize=11, pad=12)
+
+    dropped_list = ", ".join(
+        f"{row.provider} ({row.n_threads})" for row in dropped.itertuples()
+    )
+    caption = (
+        "Circle area is proportional to the number of threads mentioning the "
+        f"provider. Providers mentioned in fewer than {min_threads} threads "
+        f"are cut from this chart so every remaining label stays readable; "
+        f"omitted ({len(dropped)}): {dropped_list}."
+    )
+    ax.text(0.5, -0.03, "\n".join(textwrap.wrap(caption, width=110)),
+            transform=ax.transAxes, fontsize=7.5, color=INK_MUTED,
+            ha="center", va="top")
     _save(fig, "fig4_provider_mentions")
 
 
@@ -451,7 +489,7 @@ def main():
     fig_corpus_by_subreddit_counts(master)
     fig_build_vs_buy_presence(master)
     fig_factor_salience(factors)
-    fig_provider_mentions(providers)
+    fig_provider_mentions(providers)  # top_n=None -> all providers
     fig_stance_by_tier(master)
     fig_sentiment_by_stance(master)
     print(f"Done. Figures in {FIG_DIR}")
