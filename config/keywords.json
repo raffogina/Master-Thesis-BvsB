@@ -126,7 +126,7 @@
       "terms": ["competitive advantage", "competitor", "competitors", "market trend*", "trending", "keep up with", "keeping up with", "falling behind", "behind the curve", "industry standard", "everyone is using", "fomo", "first mover", "early adopter", "cutting edge", "state of the art", "stay ahead", "stay competitive"]
     },
     "company_characteristics": {
-      "label": "Company / firm / legal department characteristics (scale, industry) / organizational change readiness",
+      "label": "Company / firm / legal department characteristics (scale, industry) /\norganizational change readiness",
       "terms": ["small firm", "large firm", "big firm", "boutique", "solo practitioner", "sole practitioner", "midsize", "mid size", "enterprise", "small business", "large company", "company size", "global firm", "regional firm", "industry", "sector", "practice area", "change culture", "change management", "resistant to change", "change averse", "digital transformation"]
     }
   },
