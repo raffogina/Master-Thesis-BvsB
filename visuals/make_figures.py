@@ -24,8 +24,8 @@ gray = unclear/too_short. Single-series ranked bars use one flat hue
 import os
 
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import pandas as pd
+from matplotlib.patches import Patch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(os.path.dirname(HERE), "out")
@@ -52,6 +52,40 @@ STANCE_COLORS = {
     "too_short": GRAY_SHORT,
 }
 STANCE_ORDER = ["build-leaning", "buy-leaning", "mixed", "unclear", "too_short"]
+
+# ---- static reference counts, sourced from the Arctic Shift local dumps ----
+# (data/*.jsonl — total ~210MB across the 12 corpus subreddits). These are
+# ALL submissions ever captured in the dump for that subreddit, i.e. the
+# denominator for "what share of a subreddit's threads matched our query" —
+# not filtered by query or tier. The dumps are large and static (re-scanning
+# them on every figure run buys nothing), so the counts are captured here.
+# Recompute (one-time line count / created_utc scan of data/r_<sub>_posts.jsonl)
+# if data/ is refreshed with newer dumps.
+SUBREDDIT_TOTAL_POSTS = {
+    "Lawyertalk": 55460,
+    "legaltech": 4956,
+    "legaltechAI": 172,
+    "LegaltechEurope": 49,
+    "LegalAITech": 34,
+    "AIforLawyers_": 30,
+    "LegalAIHelp": 60,
+    "TheAttorneyLounge": 13,
+    "techlaw": 94,
+    "LegalAIPrompts": 5,
+    "LegalTechMakers": 42,
+    "lawtech": 150,
+}
+
+# Total submissions posted per calendar year, summed across the same 12
+# subreddits (same source as SUBREDDIT_TOTAL_POSTS). 2026 is partial: the
+# dumps cover through 2026-06-29.
+SUBREDDIT_TOTAL_POSTS_BY_YEAR = {
+    2022: 6155,
+    2023: 9751,
+    2024: 14930,
+    2025: 19655,
+    2026: 10385,   # partial year, through 2026-06-29
+}
 
 plt.rcParams.update({
     "font.family": "sans-serif",
@@ -84,69 +118,150 @@ def _save(fig, name):
 
 
 # ---------------------------------------------------------------------------
-# Figure 1 — corpus composition by subreddit
+# Figure 1 — query yield by subreddit
 # Job: compare magnitude, ranked -> horizontal bar, single sequential hue.
+# Metric: threads kept (post query + tier filter) as a % of ALL threads ever
+# posted in that subreddit — not a raw count, so a small subreddit that is
+# heavily build-vs-buy focused isn't visually dwarfed by a large one that
+# mostly isn't. Subreddits below 1% are folded into a single "Other" bar.
 # ---------------------------------------------------------------------------
 def fig_corpus_by_subreddit(master):
-    counts = master["subreddit"].value_counts().sort_values()
+    kept = master["subreddit"].value_counts()
+    totals = pd.Series(SUBREDDIT_TOTAL_POSTS)
+    df = pd.DataFrame({"kept": kept, "total": totals.reindex(kept.index)})
+    df["pct"] = df["kept"] / df["total"] * 100
+
+    small = df[df["pct"] < 1.0]
+    large = df[df["pct"] >= 1.0].copy()
+    if len(small):
+        other = pd.DataFrame(
+            {"kept": [small["kept"].sum()], "total": [small["total"].sum()]},
+            index=[f"Other ({len(small)} subreddits)"])
+        other["pct"] = other["kept"] / other["total"] * 100
+        large = pd.concat([large, other])
+    large = large.sort_values("pct")
+
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    bars = ax.barh(counts.index, counts.values, color=BLUE, height=0.65)
-    for bar, val in zip(bars, counts.values):
-        ax.text(val + max(counts.values) * 0.01, bar.get_y() + bar.get_height() / 2,
-                 f"{val:,}", va="center", ha="left", fontsize=8.5, color=INK_SECONDARY)
-    ax.set_xlabel("Threads kept")
-    ax.set_title("Corpus composition by subreddit", loc="left", fontsize=11, pad=12)
+    bars = ax.barh(large.index, large["pct"], color=BLUE, height=0.65)
+    for bar, val in zip(bars, large["pct"]):
+        ax.text(val + max(large["pct"]) * 0.015, bar.get_y() + bar.get_height() / 2,
+                 f"{val:.1f}%", va="center", ha="left", fontsize=8.5, color=INK_SECONDARY)
+    ax.set_xlabel("Threads kept, as % of that subreddit's total threads")
+    ax.set_title("Query yield by subreddit", loc="left", fontsize=11, pad=12)
+    ax.set_xlim(0, max(large["pct"]) * 1.15)
     ax.xaxis.grid(True, color=GRIDLINE, linewidth=0.8)
     ax.set_axisbelow(True)
     ax.spines["left"].set_visible(False)
     _clean_axes(ax, hide_spines=("top", "right", "left"))
     ax.tick_params(left=False)
     fig.text(0.01, -0.02,
-              "Note: r/Lawyertalk and r/legaltech together account for the large majority "
-              "of the corpus; the remaining 10 subreddits contribute a small share each.",
+              "Denominator = all submissions ever posted in that subreddit (Arctic Shift "
+              "dump), not just query matches. Subreddits below 1% are grouped into 'Other'.",
               fontsize=7.5, color=INK_MUTED, ha="left")
     _save(fig, "fig1_corpus_by_subreddit")
 
 
 # ---------------------------------------------------------------------------
-# Figure 2 — corpus growth over time
-# Job: trend over time -> line, single series, sequential hue.
+# Figure 2 — build vs. buy discussion presence
+# Job: tell distinct series apart, over time -> grouped bar, two series
+# (threads kept vs. total threads posted that year, all 12 subreddits).
+# Years fixed at 2022-2026 (full data coverage). 2026 is partial (dumps run
+# through 2026-06-29): the observed bar is solid, and a hatched segment on
+# top projects the rest of the year at the same daily pace, so the bar isn't
+# misread as the topic declining when it's really just an incomplete year.
+# Log y-axis: "kept" and "total" differ by ~1-2 orders of magnitude, so a
+# linear axis would flatten the kept series to invisibility.
 # ---------------------------------------------------------------------------
-def fig_corpus_over_time(master):
-    dates = pd.to_datetime(master["created_utc"], errors="coerce")
-    per_year = dates.dt.year.value_counts().sort_index()
-    per_year = per_year[per_year.index >= 2015]
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(per_year.index, per_year.values, color=BLUE, linewidth=2, marker="o",
-            markersize=4, markerfacecolor=BLUE, markeredgecolor="white", markeredgewidth=0.8)
-    ax.fill_between(per_year.index, per_year.values, color=BLUE, alpha=0.08)
-    ax.set_ylabel("Threads kept")
-    ax.set_title("Corpus growth over time", loc="left", fontsize=11, pad=12)
-    ax.yaxis.grid(True, color=GRIDLINE, linewidth=0.8)
+def fig_build_vs_buy_presence(master):
+    years = list(range(2022, 2027))
+    dates = pd.to_datetime(master["created_utc"], errors="coerce", utc=True)
+    kept_by_year = dates.dt.year.value_counts()
+    kept_actual = {y: int(kept_by_year.get(y, 0)) for y in years}
+    total_actual = {y: SUBREDDIT_TOTAL_POSTS_BY_YEAR[y] for y in years}
+
+    cutoff = dates.max()
+    current_year = int(cutoff.year)
+    days_in_year = 366 if pd.Timestamp(current_year, 12, 31).is_leap_year else 365
+    frac_elapsed = cutoff.dayofyear / days_in_year
+
+    kept_proj = dict(kept_actual)
+    total_proj = dict(total_actual)
+    kept_proj[current_year] = kept_actual[current_year] / frac_elapsed
+    total_proj[current_year] = total_actual[current_year] / frac_elapsed
+
+    kept_solid = [kept_actual[y] for y in years]
+    total_solid = [total_actual[y] for y in years]
+    kept_remainder = [kept_proj[y] - kept_actual[y] for y in years]
+    total_remainder = [total_proj[y] - total_actual[y] for y in years]
+
+    x = list(range(len(years)))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    ax.set_yscale("log")
+
+    xk = [i - width / 2 for i in x]
+    xt = [i + width / 2 for i in x]
+    ax.bar(xk, kept_solid, width, color=BLUE, zorder=3)
+    ax.bar(xk, kept_remainder, width, bottom=kept_solid, color=BLUE, alpha=0.35,
+           hatch="//", edgecolor="white", linewidth=0, zorder=3)
+    ax.bar(xt, total_solid, width, color=INK_MUTED, zorder=3)
+    ax.bar(xt, total_remainder, width, bottom=total_solid, color=INK_MUTED, alpha=0.35,
+           hatch="//", edgecolor="white", linewidth=0, zorder=3)
+
+    for xi, y in zip(xk, years):
+        top = kept_proj[y]
+        label = f"{kept_actual[y]:,}" if y != current_year else f"{kept_actual[y]:,}→{round(top):,}"
+        ax.text(xi, top * 1.08, label, ha="center", va="bottom", fontsize=7.5,
+                 color=INK_SECONDARY)
+    for xi, y in zip(xt, years):
+        top = total_proj[y]
+        label = f"{total_actual[y]:,}" if y != current_year else f"{total_actual[y]:,}→{round(top):,}"
+        ax.text(xi, top * 1.08, label, ha="center", va="bottom", fontsize=7.5,
+                 color=INK_SECONDARY)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(y) for y in years])
+    ax.set_ylim(50, max(total_proj.values()) * 2.2)
+    ax.set_ylabel("Threads (log scale)")
+    ax.set_title("Build vs. buy discussion presence", loc="left", fontsize=11, pad=12)
+    ax.yaxis.grid(True, color=GRIDLINE, linewidth=0.8, which="major")
     ax.set_axisbelow(True)
-    ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+    handles = [
+        Patch(color=BLUE, label="Threads kept"),
+        Patch(color=INK_MUTED, label="Total threads posted"),
+        Patch(facecolor="white", edgecolor=INK_MUTED, hatch="//",
+              label=f"Projected remainder of {current_year}"),
+    ]
+    ax.legend(handles=handles, frameon=False, loc="upper left", fontsize=8.5)
     _clean_axes(ax)
-    fig.text(0.01, -0.02,
-              "Note: partial-year data at both ends of the range depending on dump coverage.",
+    fig.text(0.01, -0.03,
+              f"{current_year} data covers Jan 1-{cutoff.strftime('%b %d')} "
+              f"({cutoff.dayofyear} of {days_in_year} days); the hatched segment projects "
+              "the rest of the year at the same daily pace. 'Total threads posted' = all "
+              "submissions across the 12 corpus subreddits that year, kept or not.",
               fontsize=7.5, color=INK_MUTED, ha="left")
-    _save(fig, "fig2_corpus_over_time")
+    _save(fig, "fig2_build_vs_buy_presence")
 
 
 # ---------------------------------------------------------------------------
 # Figure 3 — factor salience ranking
 # Job: compare magnitude, ranked -> horizontal bar, single sequential hue.
+# Metric: share of ALL threads mentioning the factor (pct_all_threads), not
+# just decision-tier threads. Axis fixed at 0-100% (the true scale of a
+# percentage) rather than 1.15x the max bar, so bar length isn't inflated
+# relative to the full possible range.
 # ---------------------------------------------------------------------------
 def fig_factor_salience(factors, top_n=12):
-    df = factors.sort_values("pct_decision_threads", ascending=True).tail(top_n)
+    df = factors.sort_values("pct_all_threads", ascending=True).tail(top_n)
     fig, ax = plt.subplots(figsize=(7.5, 5.5))
-    bars = ax.barh(df["label"], df["pct_decision_threads"], color=BLUE, height=0.65)
-    for bar, val in zip(bars, df["pct_decision_threads"]):
+    bars = ax.barh(df["label"], df["pct_all_threads"], color=BLUE, height=0.65)
+    for bar, val in zip(bars, df["pct_all_threads"]):
         ax.text(val + 1, bar.get_y() + bar.get_height() / 2, f"{val:.0f}%",
                  va="center", ha="left", fontsize=8.5, color=INK_SECONDARY)
-    ax.set_xlabel("Share of decision-tier threads mentioning the factor (%)")
-    ax.set_title(f"Top {top_n} factors by decision-tier salience", loc="left",
+    ax.set_xlabel("Share of all threads mentioning the factor (%)")
+    ax.set_title(f"Top {top_n} factors by thread salience", loc="left",
                  fontsize=11, pad=12)
-    ax.set_xlim(0, max(df["pct_decision_threads"]) * 1.15)
+    ax.set_xlim(0, 100)
     ax.xaxis.grid(True, color=GRIDLINE, linewidth=0.8)
     ax.set_axisbelow(True)
     _clean_axes(ax, hide_spines=("top", "right", "left"))
@@ -157,19 +272,19 @@ def fig_factor_salience(factors, top_n=12):
 # ---------------------------------------------------------------------------
 # Figure 4 — provider mentions ranking
 # Job: compare magnitude, ranked -> horizontal bar, single sequential hue.
-# Category shown as a muted text annotation instead of color (14 categories
-# is far past the categorical series cap of ~8).
+# No category labels: with 14 categories the per-bar tags read as clutter
+# rather than signal (see fig4_provider_mentions v1) — category-level
+# comparison isn't the job of this figure, so it was dropped rather than
+# recolored.
 # ---------------------------------------------------------------------------
 def fig_provider_mentions(providers, top_n=15):
     df = providers.sort_values("n_threads", ascending=True).tail(top_n)
     fig, ax = plt.subplots(figsize=(8, 6))
     bars = ax.barh(df["provider"], df["n_threads"], color=BLUE, height=0.65)
-    xmax = max(df["n_threads"]) * 1.25
-    for bar, val, cat in zip(bars, df["n_threads"], df["category"]):
+    xmax = max(df["n_threads"]) * 1.1
+    for bar, val in zip(bars, df["n_threads"]):
         ax.text(val + xmax * 0.01, bar.get_y() + bar.get_height() / 2, f"{val:,}",
                  va="center", ha="left", fontsize=8.5, color=INK_SECONDARY)
-        ax.text(xmax * 0.985, bar.get_y() + bar.get_height() / 2, cat,
-                 va="center", ha="right", fontsize=7.5, color=INK_MUTED, style="italic")
     ax.set_xlabel("Threads mentioning the provider")
     ax.set_title(f"Top {top_n} providers by thread coverage", loc="left",
                  fontsize=11, pad=12)
@@ -207,7 +322,9 @@ def fig_stance_by_tier(master):
     ax.set_title("Stance classification by corpus tier", loc="left", fontsize=11, pad=12)
     ax.yaxis.grid(True, color=GRIDLINE, linewidth=0.8)
     ax.set_axisbelow(True)
-    ax.legend(frameon=False, loc="upper right", fontsize=9)
+    # 'unclear'/'too_short' bars run tall on the right; build-/buy-leaning
+    # stay low on the left, so the legend sits there instead of over data.
+    ax.legend(frameon=False, loc="upper left", fontsize=9)
     _clean_axes(ax)
     fig.text(0.01, -0.03,
               "'too_short' = fewer than 3 scraped comments; excluded from stance analysis "
@@ -247,8 +364,8 @@ def fig_sentiment_by_stance(master):
     ax.set_axisbelow(True)
     _clean_axes(ax)
     fig.text(0.01, -0.03,
-              "Only tier-1 threads with >=1 qualifying decision sentence; a minority of "
-              "the corpus (see run_summary.txt) — read as exploratory, not conclusive.",
+              "n = threads in that stance group with >=1 qualifying decision sentence "
+              "(tier-1 only) — read as exploratory, not conclusive.",
               fontsize=7.5, color=INK_MUTED, ha="left")
     _save(fig, "fig6_sentiment_by_stance")
 
@@ -260,7 +377,7 @@ def main():
 
     print("Generating figures from out/ (read-only) ...")
     fig_corpus_by_subreddit(master)
-    fig_corpus_over_time(master)
+    fig_build_vs_buy_presence(master)
     fig_factor_salience(factors)
     fig_provider_mentions(providers)
     fig_stance_by_tier(master)
