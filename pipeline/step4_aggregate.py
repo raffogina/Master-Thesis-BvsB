@@ -15,11 +15,13 @@ was skipped, deleted or failed — so one broken analysis never blocks the
 others' results.
 
 Outputs (in --out):
-  threads_master.csv     always (meta + tier; analysis columns filled per module)
-  factor_salience.csv    needs the factors module
-  provider_mentions.csv  needs the providers module
-  term_discovery.csv     needs the terms module
-  run_summary.txt        always
+  threads_master.csv       always (meta + tier; analysis columns filled per module)
+  factor_salience.csv      needs the factors module
+  provider_mentions.csv    needs the providers module
+  decision_sentences.csv   needs the sentiment module (one row per decision
+                            sentence: thread_id, verb, stance, tone, sentence)
+  term_discovery.csv       needs the terms module
+  run_summary.txt          always
 
 Standalone use (auto-detects which module outputs exist):
   python3 -m pipeline.step4_aggregate --config config/keywords.json --out out
@@ -58,7 +60,7 @@ class DictionaryCoverage:
         gate = config["gate"]
         stance = config["stance"]
         self.re_strong = compile_terms(gate["strong_phrases"])
-        self.re_nouns = compile_terms(gate["software_nouns"])
+        self.re_nouns = compile_terms(gate["legaltech_terms"])
         self.re_legal = compile_terms(gate["legal_terms"])
         self.re_build = compile_terms(stance["build_signals"])
         self.re_buy = compile_terms(stance["buy_signals"])
@@ -72,8 +74,9 @@ class DictionaryCoverage:
         for key, (_label, pattern) in self.factors.items():
             if count_matches(pattern, probe):
                 covered.append(f"factor:{key}")
-        for name, _cat, _ls, pattern in self.providers:
-            if count_matches(pattern, probe):
+        for entry in self.providers:
+            name = entry[0]
+            if common.count_provider_mentions(entry, probe):
                 covered.append(f"provider:{name}")
         if (count_matches(self.re_strong, probe) or count_matches(self.re_build, probe)
                 or count_matches(self.re_buy, probe)):
@@ -131,6 +134,7 @@ def run(config_path, out_dir, use_modules=None):
     master_rows = []
     factor_agg = {}         # key -> {"label", tiers: {1: {...}, 2: {...}}}
     provider_agg = {}       # name -> {"category", "threads", "mentions"}
+    decision_sentence_rows = []  # one row per decision sentence (box-plot-ready)
 
     for meta in kept:
         tid = meta["thread_id"]
@@ -139,6 +143,17 @@ def run(config_path, out_dir, use_modules=None):
         fac = factors_of.get(tid, {})     # {key: [label, mentions]}
         prov = providers_of.get(tid, {})  # {name: [category, mentions]}
         sen = sentiment_of.get(tid, {})
+
+        for entry in sen.get("sentences", []):
+            decision_sentence_rows.append({
+                "thread_id": tid,
+                "subreddit": meta["subreddit"],
+                "corpus_tier": tier,
+                "verb": entry["verb"],
+                "stance": entry["stance"],
+                "tone": entry["tone"],
+                "sentence": entry["sentence"],
+            })
 
         master_rows.append({
             "subreddit": meta["subreddit"],
@@ -191,10 +206,16 @@ def run(config_path, out_dir, use_modules=None):
                          list(master_rows[0].keys()), master_rows)
 
     # ---- factor salience per tier (needs the factors module) -----------------
-    # pct_*_threads columns measure COVERAGE (share of threads mentioning the
-    # factor; a thread can mention several factors, so they overlap and do not
-    # sum to 100). pct_of_total_mentions measures RELATIVE WEIGHT (share of
-    # all factor mentions; sums to ~100 across rows, up to rounding).
+    # PRIMARY metric: thread_coverage_pct_* - the share of threads that
+    # mention the factor AT LEAST ONCE (a thread contributes at most 1 to the
+    # underlying count no matter how many times it mentions the factor, no
+    # matter how long the thread is, and regardless of how many terms the
+    # factor's dictionary has - see step3b_factors.py). This is what the
+    # table is sorted by. mention_share_pct is a SECONDARY, informational
+    # column only (share of all factor mentions; sums to ~100 across rows) -
+    # it is biased by dictionary size (a 50-term dictionary racks up more
+    # mentions than a 13-term one for equally salient factors) and by thread
+    # length/repetition, so don't use it to rank or compare factors.
     def tier_cells(bucket, base):
         if not bucket:
             return 0, 0
@@ -215,20 +236,20 @@ def run(config_path, out_dir, use_modules=None):
                 "factor": key,
                 "label": agg["label"],
                 "n_threads_decision": t1_threads,
-                "pct_decision_threads": t1_pct,
+                "thread_coverage_pct_decision": t1_pct,
                 "n_threads_discourse": t2_threads,
-                "pct_discourse_threads": t2_pct,
+                "thread_coverage_pct_discourse": t2_pct,
                 "n_threads_all": all_threads,
-                "pct_all_threads": round(100 * all_threads / n_threads, 1) if n_threads else 0,
+                "thread_coverage_pct_all": round(100 * all_threads / n_threads, 1) if n_threads else 0,
                 "total_mentions": all_mentions,
-                "pct_of_total_mentions": (round(100 * all_mentions / total_factor_mentions, 1)
-                                          if total_factor_mentions else 0),
+                "mention_share_pct": (round(100 * all_mentions / total_factor_mentions, 1)
+                                      if total_factor_mentions else 0),
             })
         common.write_csv(os.path.join(out_dir, "factor_salience.csv"),
-                         ["factor", "label", "n_threads_decision", "pct_decision_threads",
-                          "n_threads_discourse", "pct_discourse_threads",
-                          "n_threads_all", "pct_all_threads",
-                          "total_mentions", "pct_of_total_mentions"], factor_rows)
+                         ["factor", "label", "n_threads_decision", "thread_coverage_pct_decision",
+                          "n_threads_discourse", "thread_coverage_pct_discourse",
+                          "n_threads_all", "thread_coverage_pct_all",
+                          "total_mentions", "mention_share_pct"], factor_rows)
     else:
         print("   ⚠️ factor_salience.csv NOT rewritten (factors module not run); "
               "any existing file is from an earlier run")
@@ -255,6 +276,20 @@ def run(config_path, out_dir, use_modules=None):
                          provider_rows)
     else:
         print("   ⚠️ provider_mentions.csv NOT rewritten (providers module not run); "
+              "any existing file is from an earlier run")
+
+    # ---- decision sentences, one row per sentence (needs the sentiment module) -
+    # Un-collapsed detail behind decision_tone_mean: every first-person
+    # past-decision sentence in a tier-1 thread, its own VADER tone, and its
+    # build/buy stance tag. Tidy/long format on purpose - e.g.
+    # sns.boxplot(x="stance", y="tone", data=pd.read_csv("decision_sentences.csv"))
+    # to compare the tone distribution of build-decision vs buy-decision sentences.
+    if payload["sentiment"] is not None:
+        common.write_csv(os.path.join(out_dir, "decision_sentences.csv"),
+                         ["thread_id", "subreddit", "corpus_tier", "verb",
+                          "stance", "tone", "sentence"], decision_sentence_rows)
+    else:
+        print("   ⚠️ decision_sentences.csv NOT rewritten (sentiment module not run); "
               "any existing file is from an earlier run")
 
     # ---- step-B discovery table (needs the terms module) ----------------------
@@ -292,6 +327,20 @@ def run(config_path, out_dir, use_modules=None):
               "(terms module not run); any existing file is from an earlier run")
 
     # ---- run summary (for the Methodology / Results sections) ------------------
+    # step1's stats[sub]["tier1"/"tier2"] are a title+body-only PRE-FILTER
+    # count (step1_collect.py's TierAssigner call): they do not see how many
+    # comments were actually scraped, so they do not reflect step 2's
+    # comment-less-thread demotion (a tier-1 thread with 0 scraped comments
+    # is demoted to tier 2 - see step2_tier.py). Recompute the per-subreddit
+    # tier1/tier2 breakdown from the FINAL, post-demotion tier table so it
+    # reconciles with "Threads kept" below (same source, same numbers) - only
+    # posts_total/results/fetched (collection-time, unaffected by demotion)
+    # still come from the step1 stats.
+    final_tier_counts = {}
+    for r in kept:
+        bucket = final_tier_counts.setdefault(r["subreddit"], {"tier1": 0, "tier2": 0})
+        bucket[f"tier{r['corpus_tier']}"] += 1
+
     stats = run_params.get("stats", {})
     posts_total = run_params.get("posts_total")
     sentiment_backend = (payload["sentiment"]["sentiment_backend"]
@@ -321,14 +370,16 @@ def run(config_path, out_dir, use_modules=None):
             fh.write(f"Thread date range: {dates[0]} to {dates[-1]}\n")
         if stats:
             fh.write("\nPer-subreddit yield (posts in dump | query matches | "
-                     "tier1 | tier2 | threads built):\n")
+                     "tier1 | tier2 | threads built; tier1/tier2 are FINAL "
+                     "post-demotion counts, matching 'Threads kept' above):\n")
             for sub, s in stats.items():
                 sub_total = s.get("posts_total")
                 rate = (f" ({round(100 * s['results'] / sub_total, 1)}% of posts)"
                         if sub_total else "")
+                final = final_tier_counts.get(sub, {"tier1": 0, "tier2": 0})
                 fh.write(f"  r/{sub}: {sub_total if sub_total is not None else '?'} posts | "
                          f"{s['results']} query matches{rate} | "
-                         f"tier1 {s['tier1']} | tier2 {s['tier2']} | "
+                         f"tier1 {final['tier1']} | tier2 {final['tier2']} | "
                          f"built {s['fetched']}\n")
         if payload["stance"] is not None:
             stance_counts = Counter(r["stance_heuristic"] for r in master_rows
@@ -349,9 +400,10 @@ def run(config_path, out_dir, use_modules=None):
             fh.write("  (factors module not run)\n")
         for row in factor_rows[:12]:
             fh.write(f"  {row['label']}: {row['n_threads_decision']} decision threads "
-                     f"({row['pct_decision_threads']}%) | all: {row['n_threads_all']} "
-                     f"({row['pct_all_threads']}%) | {row['pct_of_total_mentions']}% "
-                     f"of all factor mentions\n")
+                     f"({row['thread_coverage_pct_decision']}% thread coverage) | "
+                     f"all: {row['n_threads_all']} ({row['thread_coverage_pct_all']}% "
+                     f"thread coverage) | {row['mention_share_pct']}% mention share "
+                     f"(biased by dictionary size/thread length - informational only)\n")
         fh.write("\nTop providers by thread coverage:\n")
         if payload["providers"] is None:
             fh.write("  (providers module not run)\n")

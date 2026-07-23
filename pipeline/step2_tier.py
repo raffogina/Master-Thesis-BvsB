@@ -42,7 +42,7 @@ class TierAssigner:
         gate = config["gate"]
         self.re_strong = compile_terms(gate["strong_phrases"])
         self.re_weak = compile_terms(gate["weak_verbs"])
-        self.re_nouns = compile_terms(gate["software_nouns"])
+        self.re_nouns = compile_terms(gate["legaltech_terms"])
         self.re_legal = compile_terms(gate["legal_terms"])
         self.factors = common.compile_factor_patterns(config)
         self.providers = common.compile_provider_patterns(config)
@@ -62,8 +62,9 @@ class TierAssigner:
 
         provider_hit = None
         legal_provider_hit = None
-        for name, _cat, legal_specific, pattern in self.providers:
-            if count_matches(pattern, head):
+        for entry in self.providers:
+            name, _cat, legal_specific = entry[0], entry[1], entry[2]
+            if common.count_provider_mentions(entry, head):
                 provider_hit = provider_hit or name
                 if legal_specific:
                     legal_provider_hit = legal_provider_hit or name

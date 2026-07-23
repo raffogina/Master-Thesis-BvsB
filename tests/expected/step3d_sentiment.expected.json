@@ -1,9 +1,9 @@
 {
-  "_readme": "Expected-output model for out/steps/step3d_sentiment.json (sentiment module — the only place the sentiment method exists). One record per TIER-1 thread: mean VADER compound of the first-person past-decision sentences (null when the thread has none) and how many such sentences were found. Consistency between the two fields is checked in code (pipeline/checks.py check_module).",
+  "_readme": "Expected-output model for out/steps/step3d_sentiment.json (sentiment module — the only place the sentiment method exists). One record per TIER-1 thread: mean VADER compound of the first-person past-decision sentences (null when the thread has none), how many such sentences were found, and the un-collapsed 'sentences' list (each with its own sentence text, matched verb, build/buy stance tag, and tone). Consistency across all of these is checked in code (pipeline/checks.py check_module).",
   "kind": "json",
   "records_key": "threads",
   "min_records": 1,
-  "required_fields": ["thread_id", "decision_tone_mean", "n_decision_sentences"],
+  "required_fields": ["thread_id", "decision_tone_mean", "n_decision_sentences", "sentences"],
   "numeric_ranges": {
     "decision_tone_mean": {"min": -1, "max": 1, "nullable": true},
     "n_decision_sentences": {"min": 0}

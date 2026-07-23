@@ -1,21 +1,21 @@
 {
-  "_readme": "Expected-output model for out/factor_salience.csv (step 4, AGGREGATE) — the core results table (RQ ii/iii). The pct_*_threads columns measure COVERAGE (share of threads mentioning the factor; a thread can mention several factors, so these overlap and do not sum to 100). pct_of_total_mentions measures RELATIVE WEIGHT (share of all factor mentions; sums to ~100 across rows, up to rounding).",
+  "_readme": "Expected-output model for out/factor_salience.csv (step 4, AGGREGATE) — the core results table (RQ ii/iii). PRIMARY metric: thread_coverage_pct_* (share of threads mentioning the factor at least once; a thread can mention several factors, so these overlap and do not sum to 100 - and the table is sorted by this). mention_share_pct is a SECONDARY, informational-only column (share of all factor mentions; sums to ~100 across rows) - it is biased by dictionary size and thread length/repetition, so it must not be used to rank or compare factors.",
   "kind": "csv",
-  "columns": ["factor", "label", "n_threads_decision", "pct_decision_threads",
-              "n_threads_discourse", "pct_discourse_threads",
-              "n_threads_all", "pct_all_threads",
-              "total_mentions", "pct_of_total_mentions"],
+  "columns": ["factor", "label", "n_threads_decision", "thread_coverage_pct_decision",
+              "n_threads_discourse", "thread_coverage_pct_discourse",
+              "n_threads_all", "thread_coverage_pct_all",
+              "total_mentions", "mention_share_pct"],
   "min_rows": 1,
   "unique_columns": ["factor"],
   "non_empty_columns": ["factor", "label"],
   "numeric_ranges": {
     "n_threads_decision": {"min": 0},
-    "pct_decision_threads": {"min": 0, "max": 100},
+    "thread_coverage_pct_decision": {"min": 0, "max": 100},
     "n_threads_discourse": {"min": 0},
-    "pct_discourse_threads": {"min": 0, "max": 100},
+    "thread_coverage_pct_discourse": {"min": 0, "max": 100},
     "n_threads_all": {"min": 1},
-    "pct_all_threads": {"min": 0, "max": 100},
+    "thread_coverage_pct_all": {"min": 0, "max": 100},
     "total_mentions": {"min": 1},
-    "pct_of_total_mentions": {"min": 0, "max": 100}
+    "mention_share_pct": {"min": 0, "max": 100}
   }
 }

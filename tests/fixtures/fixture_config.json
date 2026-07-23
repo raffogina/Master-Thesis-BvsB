@@ -10,7 +10,7 @@
   "_queries_note": "The 4 queries cover generic build-vs-buy decision vocabulary. Discovery additionally screens every post against ONE derived query built at runtime from the patterns of every legal_specific provider in 'providers' below (single source of truth: the provider list).",
 
   "gate": {
-    "_rule": "Corpus tiering (title+body only). TIER 1 'decision threads': (strong decision phrase, OR weak decision verb together with a software noun) AND legal-domain evidence (legal term, OR legal-specific provider named). TIER 2 'discourse threads': no decision phrasing, but legal-domain evidence AND tech context (software noun or any provider) AND at least one study factor or provider mentioned - kept so factor talk without explicit decisions still counts. Everything else is excluded as off-topic. Report headline factor salience on tier 1; use tier 1+2 for the discourse-wide view and as robustness check.",
+    "_rule": "Corpus tiering (title+body only). TIER 1 'decision threads': (strong decision phrase, OR weak decision verb together with a legaltech term) AND legal-domain evidence (legal term, OR legal-specific provider named). TIER 2 'discourse threads': no decision phrasing, but legal-domain evidence AND tech context (legaltech term or any provider) AND at least one study factor or provider mentioned - kept so factor talk without explicit decisions still counts. Everything else is excluded as off-topic. Report headline factor salience on tier 1; use tier 1+2 for the discourse-wide view and as robustness check.",
     "strong_phrases": [
       "build vs buy", "build or buy", "buy vs build", "buy or build", "build versus buy",
       "in house", "inhouse", "built our own", "build our own", "building our own",
@@ -24,7 +24,7 @@
       "build", "building", "built", "buy", "buying", "bought", "purchase", "purchasing",
       "develop", "developing", "developed", "code", "coding", "coded", "automate", "automating"
     ],
-    "software_nouns": [
+    "legaltech_terms": [
       "software", "tool", "tools", "app", "apps", "application", "platform", "system",
       "stack", "solution", "automation", "ai", "bot", "agent", "agents", "workflow",
       "database", "template", "templates", "integration", "api", "llm", "gpt",
@@ -78,20 +78,18 @@
       "suggested_source": "Shapiro & Varian (1999) switching costs; thesis §4.3 dependency-risk concept",
       "terms": ["lock in", "lockin", "locked in", "dependency", "dependent", "dependence", "vendor lock", "migration", "migrate", "exit strategy", "switching cost*", "stuck with", "hostage", "price increase", "raise prices", "raised prices", "offboarding fee", "exit fee", "too embedded", "deeply embedded", "get off boarded", "host our data", "data is hosted"]
     },
-    "control_customization_ip": {
-      "label": "Control / customization / IP ownership",
-      "suggested_source": "Lacity & Hirschheim (1993); Barney (1991) resource-based view",
-      "terms": ["control", "customiz*", "customis*", "custom", "bespoke", "tailor*", "flexib*", "ownership", "ip rights", "intellectual property", "own the code", "own the ip", "source code", "open source", "proprietary", "off the shelf", "off-the-shelf", "plug and play"]
+    "ip": {
+      "label": "IP ownership",
+      "terms": ["ownership", "ip rights", "intellectual property", "own the code", "own the ip", "open source", "proprietary"]
+    },
+    "customization_complexity": {
+      "label": "Customization / matter complexity",
+      "terms": ["customiz*", "customis*", "custom", "bespoke", "tailor*", "ownership", "ip rights", "intellectual property", "own the code", "own the ip", "open source", "proprietary", "requirements", "flexible requirements", "changing requirements", "one size fits all", "unique needs", "unique requirements", "niche use case", "specific needs", "ambiguous requirements", "unclear requirements"]
     },
     "usability_adoption": {
       "label": "Usability / adoption",
       "suggested_source": "Davis (1989) Technology Acceptance Model",
       "terms": ["ux", "ui", "usability", "user friendly", "intuitive", "adoption", "adopt", "training", "learning curve", "onboarding", "clunky", "easy to use", "user experience"]
-    },
-    "maintenance_support": {
-      "label": "Maintenance burden / vendor support",
-      "suggested_source": "Daneshgar et al. (2013); software maintenance economics literature",
-      "terms": ["maintenance", "maintain*", "technical debt", "bug", "bugs", "break*", "reliab*", "uptime", "downtime", "outage", "customer support", "support team", "upkeep", "who maintains", "keep it updated", "patches"]
     },
     "time_to_value": {
       "label": "Time to market / speed of deployment",
@@ -132,11 +130,6 @@
       "label": "Company / legal department characteristics (scale, industry, expertise)",
       "suggested_source": "TODO - verify against firm-size/IT-adoption contingency literature (e.g. Thong 1999)",
       "terms": ["small firm", "large firm", "big firm", "boutique", "solo practitioner", "sole practitioner", "midsize", "mid size", "enterprise", "small business", "large company", "company size", "global firm", "regional firm", "industry", "sector", "practice area"]
-    },
-    "matter_complexity": {
-      "label": "Complexity of the matter / requirement flexibility",
-      "suggested_source": "Goodhue & Thompson (1995) task-technology fit",
-      "terms": ["complex", "complexity", "complicated", "simple", "simplicity", "requirements", "flexible requirements", "changing requirements", "one size fits all", "unique needs", "unique requirements", "niche use case", "specific needs", "ambiguous requirements", "unclear requirements"]
     }
   },
 
@@ -144,11 +137,11 @@
     "_rule": "Measured variables (the market barometer), not gate filters. Replace/extend this list with a citable market taxonomy and state the cut-off date. legal_specific=true entries also count as legal-domain evidence in the tier rule.",
     "_source": "TODO: cite the taxonomy used for this list (per decision D3: e.g. Legal Tech Monitor 2025, Stanford CodeX Techindex, or Legaltech Hub) and the retrieval date.",
     "entries": [
-      {"name": "Harvey",            "patterns": ["harvey"],                                        "category": "legal_ai_assistant", "legal_specific": true},
+      {"name": "Harvey",            "patterns": [],                              "ambiguous_patterns": ["harvey"],    "category": "legal_ai_assistant", "legal_specific": true},
       {"name": "Legora",            "patterns": ["legora"],                                        "category": "legal_ai_assistant", "legal_specific": true},
       {"name": "CoCounsel/Casetext","patterns": ["cocounsel", "co counsel", "casetext"],           "category": "legal_ai_assistant", "legal_specific": true},
       {"name": "Wordsmith",         "patterns": ["wordsmith"],                                     "category": "legal_ai_assistant", "legal_specific": true},
-      {"name": "Spellbook",         "patterns": ["spellbook"],                                     "category": "contract_ai",        "legal_specific": true},
+      {"name": "Spellbook",         "patterns": [],                              "ambiguous_patterns": ["spellbook"], "category": "contract_ai",        "legal_specific": true},
       {"name": "Luminance",         "patterns": ["luminance"],                                     "category": "contract_ai",        "legal_specific": true},
       {"name": "Kira",              "patterns": ["kira"],                                          "category": "contract_ai",        "legal_specific": true},
       {"name": "Ironclad",          "patterns": ["ironclad"],                                      "category": "clm",                "legal_specific": true},
@@ -201,7 +194,7 @@
   },
 
   "sentiment": {
-    "_rule": "The ONLY sentiment measurement in the pipeline: mean VADER compound (Hutto & Gilbert 2014) of exactly those sentences in TIER-1 threads that contain a direct subject-verb bigram - a decision_subjects pronoun IMMEDIATELY followed by a decision_verbs word (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013).",
+    "_rule": "The ONLY sentiment measurement in the pipeline: VADER compound (Hutto & Gilbert 2014) of exactly those sentences in TIER-1 threads that contain a direct subject-verb bigram - a decision_subjects pronoun IMMEDIATELY followed by a decision_verbs word - AND a legaltech/provider context term in the same sentence (dictionary-based content analysis: Krippendorff 2018; Grimmer & Stewart 2013). Each sentence keeps its own tone and build/buy stance tag.",
     "decision_subjects": ["i", "we"],
     "decision_verbs": [
       "built", "bought", "purchased", "developed", "coded", "deployed",
@@ -209,7 +202,16 @@
       "implemented", "signed with", "adopted", "picked", "selected",
       "rolled out", "ended up", "opted for", "settled on", "upgraded to",
       "downgraded to", "ditched", "dropped", "canceled", "cancelled",
-      "renewed", "stuck with"
+      "renewed", "stuck with",
+      "procured", "licensed", "subscribed to", "built internally",
+      "developed internally", "engineered", "custom built"
+    ],
+    "unambiguous_build_verbs": [
+      "built", "developed", "coded", "engineered", "custom built",
+      "built internally", "developed internally"
+    ],
+    "unambiguous_buy_verbs": [
+      "bought", "purchased", "procured", "licensed", "subscribed to"
     ]
   },
 

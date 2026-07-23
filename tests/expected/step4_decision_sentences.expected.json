@@ -1,0 +1,14 @@
+{
+  "_readme": "Expected-output model for out/decision_sentences.csv (step 4, AGGREGATE) — un-collapsed detail behind threads_master.csv's decision_tone_mean: one row per first-person past-decision sentence found in a tier-1 thread (pipeline/step3d_sentiment.py), with its own VADER tone and build/buy stance tag. Tidy/long format for direct use in a box plot grouping tone by stance. Can legitimately be empty (min_rows 0) in a small pilot run with no qualifying sentences.",
+  "kind": "csv",
+  "columns": ["thread_id", "subreddit", "corpus_tier", "verb", "stance", "tone", "sentence"],
+  "min_rows": 0,
+  "non_empty_columns": ["thread_id", "verb", "sentence"],
+  "allowed_values": {
+    "stance": ["build", "buy", "mixed", "unclear"],
+    "corpus_tier": ["1"]
+  },
+  "numeric_ranges": {
+    "tone": {"min": -1, "max": 1}
+  }
+}

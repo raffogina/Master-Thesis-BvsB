@@ -406,17 +406,24 @@ class Checker:
                          bad_entry == 0, f"{bad_entry} malformed entr(y/ies)")
 
         if module == "sentiment":
+            valid_stances = {"build", "buy", "mixed", "unclear"}
             bad = 0
             for rec in records:
                 tone = rec.get("decision_tone_mean")
                 n = rec.get("n_decision_sentences")
-                well_formed = isinstance(n, int) and n >= 0 and (
-                    (tone is None and n == 0)
-                    or (isinstance(tone, (int, float)) and -1 <= tone <= 1 and n >= 1))
+                sentences = rec.get("sentences", [])
+                well_formed = (
+                    isinstance(n, int) and n >= 0 and len(sentences) == n
+                    and ((tone is None and n == 0)
+                        or (isinstance(tone, (int, float)) and -1 <= tone <= 1 and n >= 1))
+                    and all(isinstance(e.get("tone"), (int, float))
+                           and -1 <= e["tone"] <= 1
+                           and e.get("stance") in valid_stances
+                           for e in sentences))
                 if not well_formed:
                     bad += 1
-            self._record(stage, "decision tones within [-1, 1] and consistent "
-                                "with the sentence counts",
+            self._record(stage, "decision tones within [-1, 1], consistent with "
+                                "the sentence counts, and sentence list well-formed",
                          bad == 0, f"{bad} malformed record(s)")
 
         if module == "terms":
@@ -484,6 +491,11 @@ class Checker:
                 bad = sum(1 for r in discovery if int(r.get("total_count") or 0) < min_count)
                 self._record(stage, f"term_discovery: totals >= config min_count "
                                     f"({min_count})", bad == 0, f"{bad} row(s) below")
+
+        if "sentiment" in used_modules:
+            self._check_csv_against_spec(
+                stage, os.path.join(self.out_dir, "decision_sentences.csv"),
+                self._spec("step4_decision_sentences.expected.json"))
 
         summary_path = os.path.join(self.out_dir, "run_summary.txt")
         self._record(stage, "run_summary.txt exists and is non-empty",
