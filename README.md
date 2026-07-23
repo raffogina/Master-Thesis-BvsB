@@ -34,8 +34,7 @@ debate building versus buying software, and turns them into four analysable tabl
 - Former versions (audit trail only, no longer used) remain available in git history;
   their outputs were verified byte-identical to the current modules before each was
   retired.
-- `config/keywords.json` — **all dictionaries live here.** This file is methodology:
-  reproduce it in the Annex and cite a source for every list you keep.
+- `config/keywords.json` — **all dictionaries live here.**
 
 ## Methodology fixes
 
@@ -83,7 +82,7 @@ SELF-TEST  pipeline/checks.py    frozen fixture thread re-analysed by EVERY modu
                                  in cache/threads/
                                  -> out/steps/step1_collection_manifest.csv (+ cache/)
 2 TIER     step2_tier.py         tier 1 "decision threads":  (strong decision phrase OR
-                                   decision verb + software noun) AND legal-domain evidence
+                                   decision verb + legaltech term) AND legal-domain evidence
                                  tier 2 "discourse threads": no decision phrasing, but
                                    legal-domain evidence AND tech context AND >=1 factor
                                    or provider;  tier 0/-1: excluded (with reason)
@@ -95,16 +94,17 @@ SELF-TEST  pipeline/checks.py    frozen fixture thread re-analysed by EVERY modu
                                      -> out/steps/step3b_factors.json
   3c providers  step3c_providers.py  provider mentions (vendor barometer)
                                      -> out/steps/step3c_providers.json
-  3d sentiment  step3d_sentiment.py  mean VADER tone of the first-person past-decision
-                                     sentences of each tier-1 thread (the only sentiment
+  3d sentiment  step3d_sentiment.py  VADER tone of every first-person past-decision
+                                     sentence of each tier-1 thread, each kept on its own
+                                     with a build/buy stance tag (the only sentiment
                                      measured anywhere in the pipeline)
                                      -> out/steps/step3d_sentiment.json
   3e terms      step3e_terms.py      stemmed term counts for the step-B discovery check
                                      -> out/steps/step3e_term_counts.json
 4 AGGREGATE step4_aggregate.py   joins whatever analyses succeeded
                                  -> out/threads_master.csv, factor_salience.csv (split by
-                                 tier), provider_mentions.csv, term_discovery.csv,
-                                 run_summary.txt
+                                 tier), provider_mentions.csv, decision_sentences.csv,
+                                 term_discovery.csv, run_summary.txt
 ```
 
 After every step its output is validated against an expected-output model
@@ -182,8 +182,9 @@ require re-freezing: the self-test runs on its own config snapshot.
 | File | Feeds |
 |---|---|
 | `threads_master.csv` | corpus description (§3.3), stance × decision-tone cross-tab (satisfaction with build vs buy), manual annotation columns for validation |
-| `factor_salience.csv` | RQ(ii)/(iii): which factors appear, how often (coverage) and with what relative weight (share of all factor mentions) — per tier; the core results table |
+| `factor_salience.csv` | RQ(ii)/(iii): which factors appear — per tier; the core results table. Ranked by `thread_coverage_pct_*` (share of threads mentioning the factor at least once — the primary, dictionary-size-independent metric); `mention_share_pct` is a secondary, informational-only column biased by dictionary size and thread length, not for ranking |
 | `provider_mentions.csv` | vendor-landscape barometer (§4.2), category-level build vs buy discussion |
+| `decision_sentences.csv` | one row per decision sentence (verb, build/buy stance, VADER tone) — un-collapsed detail behind `decision_tone_mean`; tidy/long format for a tone-by-stance distribution plot (e.g. box plot comparing build- vs buy-decision tone) |
 | `term_discovery.csv` | step-B factor-gap check (see below) — do this BEFORE freezing the factor list |
 | `run_summary.txt` | numbers for §2 and §3.1 (posts screened, yield per subreddit, tier counts, date range, backends) |
 

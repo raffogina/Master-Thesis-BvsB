@@ -116,13 +116,38 @@ def compile_factor_patterns(config):
 
 
 def compile_provider_patterns(config):
-    """[(name, category, legal_specific, compiled pattern)] from config['providers']."""
+    """[(name, category, legal_specific, pattern, ambiguous_pattern, context_pattern)]
+    from config['providers'].
+
+    'pattern' (from entry 'patterns') counts unconditionally. 'ambiguous_pattern'
+    (from entry 'ambiguous_patterns', may be None) only counts where the same
+    text also matches 'context_pattern' (config gate.legaltech_terms - the
+    existing 'software noun' dictionary): this keeps ordinary-word / personal-
+    name provider entries (harvey, gavel, kira, cursor, ...) from being
+    inflated by non-product uses of the same word. Use count_provider_mentions
+    below to apply the gate; do not call count_matches on these tuples
+    directly. See config providers._ambiguity_rule.
+    """
+    context_pattern = compile_terms(config["gate"]["legaltech_terms"])
     providers = []
     for entry in config["providers"]["entries"]:
         providers.append((entry["name"], entry["category"],
                           bool(entry.get("legal_specific")),
-                          compile_terms(entry["patterns"])))
+                          compile_terms(entry.get("patterns", [])),
+                          compile_terms(entry.get("ambiguous_patterns", [])),
+                          context_pattern))
     return providers
+
+
+def count_provider_mentions(provider_entry, text):
+    """Total mentions of one compiled provider entry (see compile_provider_patterns)
+    in text. Unambiguous-pattern hits always count; ambiguous-pattern hits only
+    count if 'text' also contains a hit from the context pattern."""
+    _name, _category, _legal_specific, pattern, ambiguous_pattern, context_pattern = provider_entry
+    mentions = count_matches(pattern, text)
+    if ambiguous_pattern and count_matches(context_pattern, text):
+        mentions += count_matches(ambiguous_pattern, text)
+    return mentions
 
 
 # ---------------------------------------------------------------------------
@@ -182,12 +207,25 @@ def build_sentiment():
 
 URL_RE = re.compile(r"https?://\S+|www\.\S+")
 MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+CODE_FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+BLOCKQUOTE_RE = re.compile(r"^[ \t]*>.*$", re.MULTILINE)
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 TOKEN_RE = re.compile(r"[a-z']+")
 
 
 def clean_text(raw):
+    """Strip markup that would otherwise duplicate or pollute the dictionary
+    counts: quoted parent comments (Reddit blockquote lines start with '>')
+    are removed whole, not just the '>' marker - a reply that quotes its
+    parent ('> we built X' followed by the reply's own text) would otherwise
+    let 'we built X' get counted (and sentiment-scored) once in the parent
+    comment and again inside the child's quote. Code fences/inline code are
+    dropped too, since code is not prose the dictionaries are meant to match."""
     text = html.unescape(raw or "")
+    text = CODE_FENCE_RE.sub(" ", text)
+    text = INLINE_CODE_RE.sub(" ", text)
+    text = BLOCKQUOTE_RE.sub(" ", text)
     text = MD_LINK_RE.sub(r"\1", text)   # keep link label, drop URL
     text = URL_RE.sub(" ", text)
     text = text.replace("’", "'").replace("&#x200B;", " ")
@@ -292,11 +330,15 @@ def provider_query(config):
     provider, so config 'providers' is the single source of truth: edit the
     provider list there and the screening filter follows. Generic tools
     (legal_specific=false: chatgpt, aws, ...) are measured once a thread is
-    collected but are too unspecific to drive discovery."""
+    collected but are too unspecific to drive discovery. 'ambiguous_patterns'
+    are included too - the context gate (count_provider_mentions) only applies
+    once a thread is measured/tiered, so at discovery time they only widen
+    recall."""
     terms = []
     for entry in config["providers"]["entries"]:
         if entry.get("legal_specific"):
-            terms.extend(entry["patterns"])
+            terms.extend(entry.get("patterns", []))
+            terms.extend(entry.get("ambiguous_patterns", []))
     return " OR ".join(f'"{t}"' if " " in t else t for t in terms)
 
 

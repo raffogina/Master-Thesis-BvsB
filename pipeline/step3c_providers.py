@@ -14,7 +14,6 @@ import argparse
 import os
 
 from . import common
-from .common import count_matches
 
 
 class ProviderMeasurer:
@@ -25,8 +24,9 @@ class ProviderMeasurer:
         """{provider_name: [category, mentions]} for providers with >= 1 mention."""
         full_text = " \n ".join([op_text] + comment_texts)
         rows = {}
-        for name, category, _legal_specific, pattern in self.providers:
-            mentions = count_matches(pattern, full_text)
+        for entry in self.providers:
+            name, category = entry[0], entry[1]
+            mentions = common.count_provider_mentions(entry, full_text)
             if mentions:
                 rows[name] = [category, mentions]
         return rows

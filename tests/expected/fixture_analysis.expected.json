@@ -22,16 +22,12 @@
       "Vendor lock-in / dependency risk",
       2
     ],
-    "control_customization_ip": [
-      "Control / customization / IP ownership",
-      2
+    "customization_complexity": [
+      "Customization / matter complexity",
+      1
     ],
     "usability_adoption": [
       "Usability / adoption",
-      1
-    ],
-    "maintenance_support": [
-      "Maintenance burden / vendor support",
       1
     ],
     "team_expertise": [
@@ -63,7 +59,21 @@
   },
   "sentiment": {
     "decision_tone_mean": 0.2107,
-    "n_decision_sentences": 2
+    "n_decision_sentences": 2,
+    "sentences": [
+      {
+        "sentence": "We built our own tool in house with ChatGPT and it saved us so much time.",
+        "verb": "built",
+        "stance": "build",
+        "tone": 0.4215
+      },
+      {
+        "sentence": "We just bought Spellbook.",
+        "verb": "bought",
+        "stance": "buy",
+        "tone": 0.0
+      }
+    ]
   },
   "term_counts": {
     "build": 2,
