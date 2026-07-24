@@ -44,7 +44,7 @@
   },
 
   "stance": {
-    "_rule": "Heuristic orientation of the discussion, NOT a verified decision. Verify a sample by hand in the manual_decision column (see README validation protocol). Threads with fewer than min_comments scraped comments are classified 'too_short' instead of 'unclear': there is not enough text for the hit counts to reach min_hits, so 'unclear' would conflate genuine ambiguity with plain lack of data.",
+    "_rule": "Threads with fewer than min_comments scraped comments are classified 'too_short' instead of 'unclear': there is not enough text for the hit counts to reach min_hits, so 'unclear' would conflate genuine ambiguity with plain lack of data.",
     "build_signals": [
       "build our own", "built our own", "building our own", "build my own", "built my own",
       "in house", "inhouse", "build internally", "built internally", "internal tool",
