@@ -317,7 +317,8 @@ def fig_factor_salience(factors, top_n=None):
 # marks themselves — this figure is about relative market presence, not
 # precise comparison (see fig_provider_mentions v1 / bar chart for that).
 # ---------------------------------------------------------------------------
-def fig_provider_mentions(providers, min_threads=50):
+def fig_provider_mentions(providers, min_threads=50, title="Providers by market presence",
+                           save_name="fig4_provider_mentions"):
     # Cutting providers below min_threads (rather than a fixed top-N) keeps
     # every provider whose count is high enough to render as a legible,
     # labeled circle, and drops exactly the ones that would otherwise pack in
@@ -392,7 +393,7 @@ def fig_provider_mentions(providers, min_threads=50):
         fontsize = max(6.0, fontsize * scale)
         label.set_fontsize(fontsize)
 
-    ax.set_title("Providers by market presence", loc="left", fontsize=11, pad=12)
+    ax.set_title(title, loc="left", fontsize=11, pad=12)
 
     dropped_list = ", ".join(
         f"{row.provider} ({row.n_threads})" for row in dropped.itertuples()
@@ -406,7 +407,39 @@ def fig_provider_mentions(providers, min_threads=50):
     ax.text(0.5, -0.03, "\n".join(textwrap.wrap(caption, width=110)),
             transform=ax.transAxes, fontsize=7.5, color=INK_MUTED,
             ha="center", va="top")
-    _save(fig, "fig4_provider_mentions")
+    _save(fig, save_name)
+
+
+# ---------------------------------------------------------------------------
+# Figure 4b — provider mentions, 2026 threads only
+# Job: same as fig 4 (packed bubble, single sequential hue, area encodes
+# n_threads) but scoped to threads created in 2026 only, so the market-
+# presence snapshot isn't diluted by four years of prior corpus. Same
+# min_threads cutoff (50) and same rendering code path as fig 4 -- only the
+# input counts differ -- so the two figures stay visually identical in
+# style and are safe to compare side by side. Per-thread provider mentions
+# are re-derived from threads_master's "providers_mentioned" column (not
+# from provider_mentions.csv, which is a single all-years aggregate) filtered
+# to created_utc in 2026, counting each thread at most once per provider --
+# matching step4_aggregate's provider_agg["threads"] logic exactly.
+# ---------------------------------------------------------------------------
+def _provider_thread_counts_for_year(master, year):
+    dates = pd.to_datetime(master["created_utc"], errors="coerce", utc=True)
+    subset = master[dates.dt.year == year]
+    counts = {}
+    for cell in subset["providers_mentioned"].dropna():
+        for part in cell.split("; "):
+            name = part.rsplit(" (", 1)[0]
+            counts[name] = counts.get(name, 0) + 1
+    return pd.DataFrame({"provider": list(counts.keys()),
+                          "n_threads": list(counts.values())})
+
+
+def fig_provider_mentions_2026(master, min_threads=50):
+    providers_2026 = _provider_thread_counts_for_year(master, 2026)
+    fig_provider_mentions(providers_2026, min_threads=min_threads,
+                          title="Providers by market presence (2026 only)",
+                          save_name="fig4b_provider_mentions_2026")
 
 
 # ---------------------------------------------------------------------------
@@ -490,6 +523,7 @@ def main():
     fig_build_vs_buy_presence(master)
     fig_factor_salience(factors)
     fig_provider_mentions(providers)  # top_n=None -> all providers
+    fig_provider_mentions_2026(master)
     fig_stance_by_tier(master)
     fig_sentiment_by_stance(master)
     print(f"Done. Figures in {FIG_DIR}")
